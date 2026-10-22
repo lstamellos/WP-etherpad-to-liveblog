@@ -36,6 +36,14 @@ Use ephemeral WordPress + supported PHP, matching deployed Automattic Liveblog a
 
 Do not infer success solely from a successful API status; inspect WordPress comment storage and the frontend Liveblog stream.
 
+## GitHub updater tests
+
+- Mock-based `php tests/updater-smoke.php`: matches only this plugin's Update URI, detects valid published stable ZIP releases, rejects drafts/prereleases/missing or foreign assets, respects version checks and caches responses.
+- CI runs PHP syntax and updater smoke tests with PHP 8.0 and 8.3.
+- Release Actions job builds `wp-etherpad-to-liveblog.zip` with the expected top-level folder and verifies tag, PHP Version and readme Stable tag agree.
+- **Pending end-to-end release gate:** publish a stable tagged release, confirm Actions upload, install the older plugin on staging WordPress, refresh WordPress update checks, update through Plugins UI, verify the plugin directory and version; enable automatic updates for a subsequent release and verify WordPress performs the update. Do not call this complete until tested.
+- Verify updating during a live worker run does not leave old PHP code indefinitely resident; implement managed worker restart or pause during upgrades before production rollout.
+
 ## Performance and operational testing
 
 - Active pads with several collaborating reporters and long transcripts.
