@@ -1,0 +1,46 @@
+name: Build GitHub release ZIP
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+      - name: Validate stable tag and version metadata
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Only stable vX.Y.Z releases supported"; exit 1; }
+          version="$(sed -nE 's/^ \* Version: ([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' wp-etherpad-to-liveblog.php)"
+          stable="$(sed -nE 's/^Stable tag: ([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' readme.txt)"
+          test "$RELEASE_TAG" = "v$version" || { echo "Plugin version does not match release tag"; exit 1; }
+          test "$stable" = "$version" || { echo "readme.txt Stable tag mismatch"; exit 1; }
+      - name: Build installable plugin archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          slug=wp-etherpad-to-liveblog
+          mkdir -p "build/$slug"
+          cp wp-etherpad-to-liveblog.php readme.txt uninstall.php "build/$slug/"
+          cp -R includes "build/$slug/"
+          (cd build && zip -qr "../$slug.zip" "$slug")
+          unzip -tq "$slug.zip"
+          unzip -Z1 "$slug.zip" | grep -Fx "$slug/wp-etherpad-to-liveblog.php"
+          ! unzip -Z1 "$slug.zip" | grep -E '^(__MACOSX|\.git|build)/'
+      - name: Upload WordPress package to published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" wp-etherpad-to-liveblog.zip --clobber
