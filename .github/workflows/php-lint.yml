@@ -18,3 +18,5 @@ jobs:
           coverage: none
       - name: PHP lint
         run: find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n 1 php -l
+      - name: GitHub updater smoke tests
+        run: php tests/updater-smoke.php
