@@ -1,0 +1,62 @@
+name: Publish requested functional release
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/release-request.txt']
+
+permissions:
+  contents: write
+
+jobs:
+  verify-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Verify all PHP files and unit/integration smoke tests
+        run: |
+          set -euo pipefail
+          find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
+          php tests/updater-smoke.php
+          php tests/integration-smoke.php
+      - name: Validate requested release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$(cat .github/release-request.txt)"
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          version="$(sed -nE 's/^ \* Version: ([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' wp-etherpad-to-liveblog.php)"
+          stable="$(sed -nE 's/^Stable tag: ([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' readme.txt)"
+          test "$tag" = "v$version"
+          test "$version" = "$stable"
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+      - name: Package WordPress plugin ZIP with stable folder name
+        shell: bash
+        run: |
+          set -euo pipefail
+          slug=wp-etherpad-to-liveblog
+          mkdir -p "build/$slug"
+          cp wp-etherpad-to-liveblog.php readme.txt uninstall.php "build/$slug/"
+          cp -R includes "build/$slug/"
+          (cd build && zip -qr "../$slug.zip" "$slug")
+          unzip -tq "$slug.zip"
+          unzip -Z1 "$slug.zip" | grep -Fx "$slug/wp-etherpad-to-liveblog.php"
+      - name: Publish GitHub Release (idempotent)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists. No duplicate release was created."
+          else
+            gh release create "$TAG" wp-etherpad-to-liveblog.zip \
+              --target "$GITHUB_SHA" --title "$TAG — Etherpad to Liveblog MVP" \
+              --notes "First functional MVP: pad connection, POSTOK, NOPUB, per-block 5-second edit sync. Staging verification required before production use."
+          fi

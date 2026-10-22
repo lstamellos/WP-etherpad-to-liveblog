@@ -1,85 +1,94 @@
 # WP Etherpad to Liveblog
 
-A WordPress integration that will turn reporting written collaboratively in an [Etherpad](https://etherpad.org/) pad into entries in [Automattic Liveblog](https://github.com/Automattic/liveblog).
+WordPress plugin that publishes live field reporting written collaboratively in **Etherpad** as entries in **Automattic Liveblog**.
 
-**Status: development scaffold (v0.1.1). Nothing is published or synchronized yet. Do not deploy this as a working publishing integration.**
+**Version 0.2.0 — first functional MVP.** The implementation and automated mock integration tests are available. It has **not yet been validated against the actual pad.omniatv.com / omniatv.com installations**. Use staging before production.
 
-## Goals
+## Editor workflow
 
-- One Etherpad pad connects to one WordPress Liveblog (a liveblog can have at most one linked pad).
-- Reporters stay inside Etherpad: type updates and add a standalone `POSTOK` line to publish.
-- `NOPUB` / `ENDNOPUB` delimit private or editorial notes that must never be published.
-- Later edits to an already published block update its **original logical Liveblog entry** after a block-local quiet period (initial target: 5 seconds). Typing elsewhere in the pad does not delay those updates.
-- Idempotent, recoverable synchronization; conservative behavior on ambiguous delimiters, failed writes and permissions.
-- WordPress pulls Etherpad revisions using an independent worker; no Etherpad plugin is required for the initial version.
+1. Enable Automattic Liveblog on a WordPress post.
+2. Configure server-side Etherpad API credentials in `wp-config.php` (see below).
+3. Open the post editor and find **Etherpad → Liveblog**. Paste `https://pad.omniatv.com/p/<padID>`, acknowledge that the pad is writable only by authorized reporters, and click **Connect pad**.
+4. Run the dedicated WP-CLI worker. The WordPress post editor shows connected pad, status, last revision and errors. Pause/resume/disconnect from the same box.
 
-## Planned workflow
+**Initial connection baselines existing POSTOK lines without publishing them retrospectively.** One Etherpad pad can be linked to only one Liveblog at a time and vice versa.
 
-```text
-Etherpad pad --read versioned snapshot--> WP sync worker
-       |                                  |
-       | POSTOK / NOPUB / ENDNOPUB         v
-       +--------------------------------> parser + stable block mapping
-                                              |
-                                         publish or update
-                                              |
-                                  Automattic Liveblog entry API
+## Reporter workflow
+
+Only three standalone commands are needed:
+
+```
+Το δικαστήριο διέκοψε τη συνεδρίαση.
+POSTOK
+
+NOPUB
+Εσωτερική σημείωση για επιβεβαίωση ονόματος.
+ENDNOPUB
+
+Η συνεδρίαση επαναλήφθηκε.
+POSTOK
 ```
 
-**Important:** The bridge will use the official Liveblog entry class rather than inserting arbitrary posts or comments. An update in Liveblog creates an internal replacement event while retaining the original entry's reader-facing identity.
+`POSTOK` publishes the immediately preceding completed section. `NOPUB` / `ENDNOPUB` hide internal text. Edits in an *already published* section update **the same original Liveblog entry** after **5 seconds without further changes in that section**; typing elsewhere does not reset the timer.
 
-## Repository layout
+Do not move or delete old POSTOK markers; the worker checks Etherpad changesets and safely pauses on structural ambiguity instead of risking a wrong-entry edit.
 
-- `wp-etherpad-to-liveblog.php` – WordPress plugin bootstrap.
-- `includes/` – reserved integration modules and admin status page.
-- `docs/ARCHITECTURE.md` – architecture and operational design.
-- `docs/PAD-PROTOCOL.md` – control strings and editorial rules.
-- `docs/DEVELOPMENT-PLAN.el.md` – Greek implementation roadmap and acceptance criteria.
-- `docs/TEST-PLAN.md` – test scenarios and release gates.
-- `docs/USER-GUIDE.el.md` – intended reporter/editor workflow.
-- `docs/RELEASING.md` – published GitHub Releases and WordPress updater instructions.
-- `.github/workflows/` – continuous PHP checks and tagged release package creation.
+## Configuration
 
-## Requirements (target, subject to installation audit)
+Set the following in WordPress `wp-config.php` (outside web-visible files and Git):
 
-- WordPress 6.4+ and PHP 8.0+.
-- Automattic Liveblog, with the installed version/API checked before implementation.
-- Etherpad with its HTTP API accessible **server-to-server** over HTTPS.
-- A dedicated WordPress service user with the required Liveblog permissions.
-- An independent WP-CLI worker (or equivalent scheduler) for short-interval polling; WP-Cron alone is not sufficient for a reliable 2-second cadence.
+```php
+define( 'WPELB_ETHERPAD_BASE_URL', 'https://pad.omniatv.com' );
+// Prefer OAuth client credentials for recent Etherpad deployments:
+define( 'WPELB_ETHERPAD_CLIENT_ID', 'service-client-id' );
+define( 'WPELB_ETHERPAD_CLIENT_SECRET', 'secret-from-server-configuration' );
+// OR a preissued bearer token:
+// define( 'WPELB_ETHERPAD_BEARER_TOKEN', '...' );
+// OR a legacy Etherpad API key:
+// define( 'WPELB_ETHERPAD_API_KEY', '...' );
+```
 
-## Safety decisions
+Credentials are exchanged **server-side** over HTTPS. OAuth credentials are exchanged at `/oidc/token`, with an in-memory cached bearer token. Legacy API keys go in POST bodies, never browser scripts or URL query strings.
 
-- No retrospective publication on first connection unless an editor explicitly requests it.
-- No secret or token embedded in a pad, browser-side JavaScript, Git history, public logs or URLs.
-- A pad's address is not publication authorization. Only WordPress editors authorized for the liveblog can configure the mapping.
-- Never publish an incomplete/ambiguous `NOPUB` section.
-- Never silently overwrite an entry that was subsequently edited manually in WordPress.
-- A changed or removed `POSTOK` boundary must not silently remap or delete a live update.
+### Worker
 
-## GitHub Releases and WordPress updates
+Run from the WordPress installation directory as the appropriate OS user:
 
-This plugin uses WordPress's native third-party `Update URI` mechanism (WordPress 5.8+). Beginning with version **0.1.1**, plugin update checks read the latest **published, non-prerelease** GitHub Release using the public GitHub REST API. WordPress will offer an update only when the release has a higher semantic version **and** the correctly packaged `wp-etherpad-to-liveblog.zip` asset is present. GitHub's auto-generated source archives are not used.
+```bash
+wp etherpad-liveblog run --once
+# or use a persistent loop managed by systemd:
+wp etherpad-liveblog run --interval=2
+```
 
-On the **Plugins** screen in WordPress you can update manually or enable **automatic updates** for this plugin. The plugin does not force automatic updating. Release metadata is cached briefly and WordPress applies its normal update-check cadence.
+For automatic upgrades, prefer the **short-lived `--once` mode launched repeatedly** by a supervisor; each invocation reloads PHP/plugin code (see [operations guide](docs/OPERATIONS.el.md)). No worker is automatically launched on plugin activation; WP-Cron alone cannot guarantee 2-second polling.
 
-A GitHub Actions workflow builds and uploads the ZIP on publishing each stable `vX.Y.Z` release; the ZIP contains the directory `wp-etherpad-to-liveblog/`, preserving the installed plugin path. Read [release and updater instructions](docs/RELEASING.md). For an already installed older version without this updater, install v0.1.1 once manually before later GitHub updates can be detected.
+## Implemented behavior
 
-**Publishing is still not implemented** in the scaffold; this addition only handles plugin software updates.
+- Pull via Etherpad `getRevisionsCount`, `getText(rev)` and `getRevisionChangeset(rev)`; track POSTOK marker anchors through revision changesets (including Unicode UTF-16 offsets).
+- Publish only completed public blocks with `WPCOM_Liveblog_Entry::insert()`; update originals with `WPCOM_Liveblog_Entry::update()`.
+- Per-block 5s debounce; new POSTOK publishes on the next successful worker pass; unclosed NOPUB tails never leak.
+- Manual WordPress edit detection and safe block-level conflicts, sticky pending operations on uncertain writes, single-flight worker locks, error reporting and pause/resume.
+- Prevent automatic historical import, delete/unpublish and structural remapping.
+- Native WordPress updater recognizes published stable GitHub Releases with a correctly packaged ZIP; optional auto-updates are controlled by the WordPress administrator.
 
-## Current development phase
+## Important MVP limits
 
-The plugin currently registers a **Tools → Etherpad to Liveblog** status page and GitHub release update integration and checks whether the Liveblog entry API is present. It does **not** connect to Etherpad, add controls to a liveblog, register polling jobs or publish content.
+- **Plain text only**, safely escaped with paragraph/line-break formatting. Etherpad rich-text styles and embedded images are intentionally not copied yet.
+- The parser accepts full-line marker commands only. Editing, splitting, deleting or moving an existing published marker can stop the affected connection for safety.
+- WordPress editors must confirm the pad's **write access is restricted**: a writer can trigger POSTOK publication. The plugin cannot independently enforce Etherpad pad ACL.
+- Workers stop on revision jumps larger than 500, missing revision history, ambiguity or uncertain Liveblog writes. Such cases require manual reconciliation. A pending entry is never automatically retried, preventing accidental duplicate publishing after a crash.
+- For WordPress-originated manual edits, the affected block stops synchronizing instead of silently overwriting an editor.
+- Admin meta box currently targets standard WordPress posts; supported custom post types are future work.
+- Only simple site-level per-pad mapping and service-user authorship are available in the first MVP.
 
-Read the [development plan](docs/DEVELOPMENT-PLAN.el.md) before implementing the next phase.
+## Development and testing
 
-## Upstream references
+```bash
+find . -name '*.php' -print0 | xargs -0 -n1 php -l
+php tests/integration-smoke.php
+php tests/updater-smoke.php
+```
 
-- [Etherpad HTTP API](https://docs.etherpad.org/api/http_api.html)
-- [Etherpad server hooks](https://docs.etherpad.org/api/hooks_server-side.html) (possible later event-driven alternative)
-- [Automattic Liveblog](https://github.com/Automattic/liveblog)
-- [Liveblog entry implementation](https://github.com/Automattic/liveblog/blob/develop/classes/class-wpcom-liveblog-entry.php)
+[Architecture](docs/ARCHITECTURE.md) · [Pad protocol](docs/PAD-PROTOCOL.md) · [Greek development plan](docs/DEVELOPMENT-PLAN.el.md) · [Testing](docs/TEST-PLAN.md) · [Operations](docs/OPERATIONS.el.md) · [Releases](docs/RELEASING.md)
 
-## License
-
-GPL-2.0-or-later.
+**License:** GPL-2.0-or-later. [Etherpad HTTP API](https://docs.etherpad.org/api/http_api.html) · [Automattic Liveblog entry implementation](https://github.com/Automattic/liveblog/blob/develop/classes/class-wpcom-liveblog-entry.php).

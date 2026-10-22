@@ -1,9 +1,7 @@
-name: PHP syntax
-
+name: PHP syntax and smoke tests
 on:
   push:
   pull_request:
-
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -20,3 +18,5 @@ jobs:
         run: find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n 1 php -l
       - name: GitHub updater smoke tests
         run: php tests/updater-smoke.php
+      - name: Etherpad / Liveblog integration smoke tests
+        run: php tests/integration-smoke.php

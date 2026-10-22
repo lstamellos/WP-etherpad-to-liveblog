@@ -3,37 +3,33 @@ Contributors: lstamellos
 Tags: etherpad, liveblog, journalism, wordpress
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 0.1.1
+Stable tag: 0.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-An upcoming server-side bridge to publish collaborative Etherpad reporting into Automattic Liveblog.
+Publish live reporting from Etherpad into Automattic Liveblog.
 
 == Description ==
 
-DEVELOPMENT SCAFFOLD ONLY. No synchronization or publishing functionality is enabled in version 0.1.0.
-
-Planned features: one pad per liveblog, POSTOK publication delimiter, NOPUB private sections, and block-local debounce for editing already published entries.
-
-The reporter works in Etherpad; the WordPress bridge will use the documented Etherpad HTTP API and Automattic Liveblog entry methods.
+Functional MVP for connecting one Etherpad pad to one Automattic Liveblog, with POSTOK publication, NOPUB note exclusion and per-block 5-second edit debounce. Rich text formatting is not transferred in this version. An external WP-CLI worker must be configured.
 
 == Installation ==
 
-1. Install and activate Automattic Liveblog.
-2. Install this plugin into wp-content/plugins/.
-3. Activate and inspect Tools > Etherpad to Liveblog.
-4. Do not expect automatic synchronization in 0.1.0.
+1. Install Automattic Liveblog and enable it on a post.
+2. Install this plugin and configure Etherpad API credentials using wp-config.php.
+3. In the Liveblog post editor, connect an authorized pad in the Etherpad → Liveblog box.
+4. Run wp etherpad-liveblog run --once periodically or as a managed service.
+5. Test on staging before production. See README.md and docs/OPERATIONS.el.md.
 
 == Updates ==
 
-Published stable GitHub Releases are discovered using the built-in WordPress update system. The administrator can use Update now or turn on automatic updates from Plugins. A release must have the wp-etherpad-to-liveblog.zip asset; the source ZIP is not installable through this updater.
+The plugin checks published stable GitHub Releases using the native WordPress plugin-update mechanism. Administrators may enable automatic updates from the WordPress Plugins page.
 
 == Changelog ==
 
-= 0.1.1 =
-* Native WordPress Update URI integration for stable GitHub Releases.
-* Automated GitHub Release ZIP packaging, updater smoke tests and release documentation.
-
-= 0.1.0 =
-* Initial repository and non-publishing plugin scaffold.
-* Architecture, protocol, development plan and test plan.
+= 0.2.0 =
+* First functional Etherpad-to-Liveblog MVP with authorized pad connection.
+* POSTOK and NOPUB/ENDNOPUB parsing, revision-aware marker tracking.
+* Publish and edit original Liveblog entries with per-block debounce.
+* WP-CLI worker, manual conflict checks, pause/resume and read-only status.
+* WordPress native GitHub release updater.
