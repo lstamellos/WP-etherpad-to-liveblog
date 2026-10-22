@@ -3,7 +3,7 @@ Contributors: lstamellos
 Tags: etherpad, liveblog, journalism, wordpress
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 0.1.0
+Stable tag: 0.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,7 +24,15 @@ The reporter works in Etherpad; the WordPress bridge will use the documented Eth
 3. Activate and inspect Tools > Etherpad to Liveblog.
 4. Do not expect automatic synchronization in 0.1.0.
 
+== Updates ==
+
+Published stable GitHub Releases are discovered using the built-in WordPress update system. The administrator can use Update now or turn on automatic updates from Plugins. A release must have the wp-etherpad-to-liveblog.zip asset; the source ZIP is not installable through this updater.
+
 == Changelog ==
+
+= 0.1.1 =
+* Native WordPress Update URI integration for stable GitHub Releases.
+* Automated GitHub Release ZIP packaging, updater smoke tests and release documentation.
 
 = 0.1.0 =
 * Initial repository and non-publishing plugin scaffold.
