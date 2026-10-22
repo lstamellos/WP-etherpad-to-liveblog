@@ -2,7 +2,7 @@
 
 A WordPress integration that will turn reporting written collaboratively in an [Etherpad](https://etherpad.org/) pad into entries in [Automattic Liveblog](https://github.com/Automattic/liveblog).
 
-**Status: development scaffold (v0.1.0). Nothing is published or synchronized yet. Do not deploy this as a working publishing integration.**
+**Status: development scaffold (v0.1.1). Nothing is published or synchronized yet. Do not deploy this as a working publishing integration.**
 
 ## Goals
 
@@ -37,7 +37,8 @@ Etherpad pad --read versioned snapshot--> WP sync worker
 - `docs/DEVELOPMENT-PLAN.el.md` – Greek implementation roadmap and acceptance criteria.
 - `docs/TEST-PLAN.md` – test scenarios and release gates.
 - `docs/USER-GUIDE.el.md` – intended reporter/editor workflow.
-- `.github/workflows/` – continuous PHP syntax checks.
+- `docs/RELEASING.md` – published GitHub Releases and WordPress updater instructions.
+- `.github/workflows/` – continuous PHP checks and tagged release package creation.
 
 ## Requirements (target, subject to installation audit)
 
@@ -56,9 +57,19 @@ Etherpad pad --read versioned snapshot--> WP sync worker
 - Never silently overwrite an entry that was subsequently edited manually in WordPress.
 - A changed or removed `POSTOK` boundary must not silently remap or delete a live update.
 
+## GitHub Releases and WordPress updates
+
+This plugin uses WordPress's native third-party `Update URI` mechanism (WordPress 5.8+). Beginning with version **0.1.1**, plugin update checks read the latest **published, non-prerelease** GitHub Release using the public GitHub REST API. WordPress will offer an update only when the release has a higher semantic version **and** the correctly packaged `wp-etherpad-to-liveblog.zip` asset is present. GitHub's auto-generated source archives are not used.
+
+On the **Plugins** screen in WordPress you can update manually or enable **automatic updates** for this plugin. The plugin does not force automatic updating. Release metadata is cached briefly and WordPress applies its normal update-check cadence.
+
+A GitHub Actions workflow builds and uploads the ZIP on publishing each stable `vX.Y.Z` release; the ZIP contains the directory `wp-etherpad-to-liveblog/`, preserving the installed plugin path. Read [release and updater instructions](docs/RELEASING.md). For an already installed older version without this updater, install v0.1.1 once manually before later GitHub updates can be detected.
+
+**Publishing is still not implemented** in the scaffold; this addition only handles plugin software updates.
+
 ## Current development phase
 
-The plugin currently registers a **Tools → Etherpad to Liveblog** status page and checks whether the Liveblog entry API is present. It does **not** connect to Etherpad, add controls to a liveblog, register polling jobs or publish content.
+The plugin currently registers a **Tools → Etherpad to Liveblog** status page and GitHub release update integration and checks whether the Liveblog entry API is present. It does **not** connect to Etherpad, add controls to a liveblog, register polling jobs or publish content.
 
 Read the [development plan](docs/DEVELOPMENT-PLAN.el.md) before implementing the next phase.
 
