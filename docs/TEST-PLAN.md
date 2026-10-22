@@ -28,6 +28,7 @@
 | S02 | Disallowed URL, redirect, SSRF/internal address | Rejected before HTTP fetch |
 | S03 | Malicious HTML/script content | Sanitized by WordPress/Liveblog |
 | S04 | Secret accidentally in error or NOPUB | Not logged or published |
+| S05 | Public/unauthorized user can edit a linked pad | Automatic publishing blocked until pad ACL is verified |
 
 ## Integration testing
 
