@@ -1,0 +1,12 @@
+/vendor/
+/node_modules/
+/.phpunit.cache/
+/.phpunit.result.cache
+/.phpunit-watcher.yml
+/.env
+/.env.*
+!.env.example
+*.log
+.DS_Store
+.idea/
+.vscode/
