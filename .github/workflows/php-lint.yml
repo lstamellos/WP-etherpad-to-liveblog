@@ -26,5 +26,7 @@ jobs:
         run: php tests/public-export-smoke.php
       - name: Liveblog poll trigger smoke tests
         run: php tests/liveblog-poll-trigger-smoke.php
+      - name: Signed Etherpad webhook receiver smoke tests
+        run: php tests/webhook-receiver-smoke.php
       - name: WordPress admin JavaScript syntax
         run: node --check assets/admin.js
