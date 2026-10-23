@@ -34,9 +34,10 @@ jobs:
           slug=wp-etherpad-to-liveblog
           mkdir -p "build/$slug"
           cp wp-etherpad-to-liveblog.php readme.txt uninstall.php "build/$slug/"
-          cp -R includes "build/$slug/"
+          cp -R includes assets "build/$slug/"
           (cd build && zip -qr "../$slug.zip" "$slug")
           unzip -tq "$slug.zip"
+          unzip -Z1 "$slug.zip" | grep -Fx "$slug/assets/admin.js"
           unzip -Z1 "$slug.zip" | grep -Fx "$slug/wp-etherpad-to-liveblog.php"
           ! unzip -Z1 "$slug.zip" | grep -E '^(__MACOSX|\.git|build)/'
       - name: Upload WordPress package to published release
