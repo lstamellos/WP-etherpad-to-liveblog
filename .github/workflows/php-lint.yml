@@ -24,5 +24,7 @@ jobs:
         run: php tests/admin-ajax-smoke.php
       - name: Public Etherpad export smoke tests
         run: php tests/public-export-smoke.php
+      - name: Liveblog poll trigger smoke tests
+        run: php tests/liveblog-poll-trigger-smoke.php
       - name: WordPress admin JavaScript syntax
         run: node --check assets/admin.js
