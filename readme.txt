@@ -3,7 +3,7 @@ Contributors: lstamellos
 Tags: etherpad, liveblog, journalism, wordpress
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 0.3.1
+Stable tag: 0.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -26,6 +26,12 @@ Functional MVP with POSTOK publication, NOPUB exclusions and per-block edit sync
 The plugin checks published stable GitHub Releases using the native WordPress plugin-update mechanism. Administrators may enable automatic updates from the WordPress Plugins page.
 
 == Changelog ==
+
+= 0.4.0 =
+* Signed Etherpad padUpdate webhook POST receiver at /wp-json/wpelb/v1/notify.
+* HMAC-SHA256 verification with timestamp and event ID, strict payload validation and existing-pad-only authorization.
+* Webhook requests safely trigger the existing single-flight synchronizer, without requiring a separate service.
+* Independent system cron (one-minute WP-CLI pass) recommended as reliable fallback; native Liveblog polling and WP-Cron remain supplementary.
 
 = 0.3.1 =
 * Service-free automatic sync: use the native Liveblog REST polling as a throttled trigger, without modifying Liveblog.
