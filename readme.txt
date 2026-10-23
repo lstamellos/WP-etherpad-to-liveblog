@@ -3,7 +3,7 @@ Contributors: lstamellos
 Tags: etherpad, liveblog, journalism, wordpress
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 0.2.0
+Stable tag: 0.2.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -26,6 +26,11 @@ Functional MVP for connecting one Etherpad pad to one Automattic Liveblog, with 
 The plugin checks published stable GitHub Releases using the native WordPress plugin-update mechanism. Administrators may enable automatic updates from the WordPress Plugins page.
 
 == Changelog ==
+
+= 0.2.1 =
+* Fix: pad connection controls use WordPress AJAX, avoiding nested HTML forms inside the post editor.
+* Show server-validated success or error messages without submitting the post editor.
+* Automated admin connection regression tests.
 
 = 0.2.0 =
 * First functional Etherpad-to-Liveblog MVP with authorized pad connection.
