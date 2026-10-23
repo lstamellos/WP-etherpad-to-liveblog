@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1 — 2026-10-23
+
+- Native Automattic Liveblog REST polling activates background post-specific Etherpad sync, throttled across concurrent readers without modifying Liveblog.
+- On PHP-FPM the Liveblog response is delivered before the costly Etherpad synchronization; on non-FPM servers the work is deferred via WP-Cron.
+- Added 60-second WP-Cron fallback whenever WordPress receives uncached PHP traffic; no systemd service needed.
+- Existing WP-CLI interface remains available for manual verification and recovery. Automatic timing remains traffic dependent.
+- Added smoke tests for route specificity, per-post throttling, background scheduling, and paused-status protections.
+
 ## 0.3.0 — 2026-10-23
 
 - No Etherpad API credentials required for new pad connections; a publicly readable pad URL on any public HTTPS Etherpad instance is supported.
