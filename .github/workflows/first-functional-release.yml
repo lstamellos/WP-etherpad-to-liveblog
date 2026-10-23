@@ -25,6 +25,8 @@ jobs:
           find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
           php tests/updater-smoke.php
           php tests/integration-smoke.php
+          php tests/admin-ajax-smoke.php
+          node --check assets/admin.js
       - name: Validate requested release tag
         shell: bash
         run: |
@@ -43,9 +45,10 @@ jobs:
           slug=wp-etherpad-to-liveblog
           mkdir -p "build/$slug"
           cp wp-etherpad-to-liveblog.php readme.txt uninstall.php "build/$slug/"
-          cp -R includes "build/$slug/"
+          cp -R includes assets "build/$slug/"
           (cd build && zip -qr "../$slug.zip" "$slug")
           unzip -tq "$slug.zip"
+          unzip -Z1 "$slug.zip" | grep -Fx "$slug/assets/admin.js"
           unzip -Z1 "$slug.zip" | grep -Fx "$slug/wp-etherpad-to-liveblog.php"
       - name: Publish GitHub Release (idempotent)
         env:
@@ -57,6 +60,6 @@ jobs:
             echo "Release $TAG already exists. No duplicate release was created."
           else
             gh release create "$TAG" wp-etherpad-to-liveblog.zip \
-              --target "$GITHUB_SHA" --title "$TAG — Etherpad to Liveblog MVP" \
-              --notes "First functional MVP: pad connection, POSTOK, NOPUB, per-block 5-second edit sync. Staging verification required before production use."
+              --target "$GITHUB_SHA" --title "$TAG — Etherpad to Liveblog MVP patch" \
+              --notes "Fix WordPress post editor Connect pad form: use authenticated AJAX; plugin now confirms persisted connection and reports errors. Existing POSTOK / NOPUB worker unchanged. Staging verification recommended."
           fi
