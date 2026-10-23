@@ -7,6 +7,31 @@ final class WPELB_Admin {
         add_action( 'admin_menu', array( __CLASS__, 'add_status_page' ) );
         add_action( 'add_meta_boxes', array( __CLASS__, 'add_box' ) );
         add_action( 'admin_post_wpelb_action', array( __CLASS__, 'handle' ) );
+        add_action( 'wp_ajax_wpelb_action', array( __CLASS__, 'handle' ) );
+        add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
+    }
+
+    /**
+     * The WP post editor already owns a <form>; a nested form in a meta box
+     * is invalid HTML and prevented connections from being saved.
+     * Load a separate AJAX controller only on post editing screens.
+     */
+    public static function enqueue_assets( $hook ) {
+        if ( ! in_array( $hook, array( 'post.php', 'post-new.php' ), true ) ) {
+            return;
+        }
+        wp_enqueue_script(
+            'wpelb-admin',
+            plugins_url( 'assets/admin.js', WPELB_PLUGIN_FILE ),
+            array(),
+            WPELB_VERSION,
+            true
+        );
+        wp_add_inline_script(
+            'wpelb-admin',
+            'window.wpelbAdmin=' . wp_json_encode( array( 'ajaxUrl' => admin_url( 'admin-ajax.php' ) ) ) . ';',
+            'before'
+        );
     }
 
     public static function add_status_page() {
@@ -59,36 +84,49 @@ final class WPELB_Admin {
             }
             self::form_open( $post->ID );
             if ( 'active' === $state_status ) {
-                echo '<button class="button" name="wpelb_operation" value="pause">Pause sync</button> ';
+                echo '<button type="button" class="button" data-wpelb-operation="pause">Pause sync</button> ';
             } else {
-                echo '<button class="button" name="wpelb_operation" value="resume">Resume sync</button> ';
+                echo '<button type="button" class="button" data-wpelb-operation="resume">Resume sync</button> ';
             }
-            echo '<button class="button" name="wpelb_operation" value="disconnect" onclick="return confirm(\'Disconnect this pad? Published entries are preserved.\')">Disconnect</button>';
-            echo '</form>';
+            echo '<button type="button" class="button" data-wpelb-operation="disconnect">Disconnect</button>';
+            echo '</div>';
         } else {
             echo '<p>Connect an existing pad. Previous POSTOK lines are ignored on first link.</p>';
             self::form_open( $post->ID );
             echo '<label for="wpelb-pad-url">Etherpad URL</label><input id="wpelb-pad-url" class="widefat" type="url" name="pad_url" placeholder="https://pad.omniatv.com/p/example" required />';
             echo '<p><label><input type="checkbox" name="pad_acl_ack" value="1" required /> I confirm that only trusted reporters can edit this pad.</label></p>';
-            echo '<button class="button button-primary" name="wpelb_operation" value="connect">Connect pad</button></form>';
+            echo '<button type="button" class="button button-primary" data-wpelb-operation="connect">Connect pad</button></div>';
         }
     }
 
     private static function form_open( $post_id ) {
-        echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
-        echo '<input type="hidden" name="action" value="wpelb_action" />';
-        echo '<input type="hidden" name="post_id" value="' . esc_attr( (string) $post_id ) . '" />';
-        wp_nonce_field( 'wpelb_action_' . $post_id );
+        // Not a HTML form: WordPress post.php already wraps all meta boxes in
+        // its own form. The AJAX button carries its own post-bound nonce.
+        echo '<div class="wpelb-action-group" data-post-id="' . esc_attr( (string) $post_id ) .
+            '" data-nonce="' . esc_attr( wp_create_nonce( 'wpelb_action_' . $post_id ) ) . '">';
+        echo '<p class="wpelb-feedback" role="status" aria-live="polite" hidden></p>';
     }
 
     public static function handle() {
         $post_id = absint( $_POST['post_id'] ?? 0 );
         if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) || ! current_user_can( 'publish_posts' ) ) {
+            if ( wp_doing_ajax() ) {
+                wp_send_json_error( array( 'message' => 'Permission denied.' ), 403 );
+            }
             wp_die( 'Permission denied', '', array( 'response' => 403 ) );
         }
-        check_admin_referer( 'wpelb_action_' . $post_id );
+        if ( wp_doing_ajax() ) {
+            if ( ! check_ajax_referer( 'wpelb_action_' . $post_id, 'nonce', false ) ) {
+                wp_send_json_error( array( 'message' => 'Security token expired; reload the editor.' ), 403 );
+            }
+        } else {
+            check_admin_referer( 'wpelb_action_' . $post_id );
+        }
         $operation = sanitize_key( wp_unslash( $_POST['wpelb_operation'] ?? '' ) );
         if ( ! WPELB_Mapping_Store::acquire( $post_id ) ) {
+            if ( wp_doing_ajax() ) {
+                wp_send_json_error( array( 'message' => 'Synchronization is busy. Investigate the existing lock.' ), 409 );
+            }
             wp_die( 'Synchronization is busy. Try again shortly; a stale lock needs operator review.', 'Etherpad to Liveblog', array( 'response' => 409 ) );
         }
         wp_cache_delete( $post_id, 'post_meta' );
@@ -158,6 +196,16 @@ final class WPELB_Admin {
         }
         WPELB_Mapping_Store::release( $post_id );
         $message = is_wp_error( $result ) ? $result->get_error_message() : 'Connection updated.';
+        if ( wp_doing_ajax() ) {
+            if ( is_wp_error( $result ) ) {
+                wp_send_json_error( array( 'message' => $message ), 400 );
+            }
+            wp_cache_delete( $post_id, 'post_meta' );
+            ob_start();
+            self::render_box( get_post( $post_id ) );
+            $html = ob_get_clean();
+            wp_send_json_success( array( 'message' => $message, 'html' => $html ) );
+        }
         wp_die( esc_html( $message ) . ' <a href="' . esc_url( get_edit_post_link( $post_id ) ) . '">Back to Liveblog</a>', 'Etherpad to Liveblog', array( 'response' => is_wp_error( $result ) ? 400 : 200 ) );
     }
 }
