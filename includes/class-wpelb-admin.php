@@ -43,8 +43,8 @@ final class WPELB_Admin {
         echo '<div class="wrap"><h1>Etherpad to Liveblog</h1><p>Version ' . esc_html( WPELB_VERSION ) . '</p>';
         echo '<p>Liveblog API: ' . esc_html( class_exists( 'WPCOM_Liveblog_Entry' ) ? 'Detected' : 'Missing' ) . '</p>';
         echo '<p>Public Etherpad exports: No API credentials required.</p>';
-        echo '<p>WP-CLI worker required: <code>wp etherpad-liveblog run --interval=2</code> (configure persistent systemd service).</p>';
-        echo '<p>No background worker is launched by activating this plugin. Publishing is disabled until a pad is linked and the worker is running.</p></div>';
+        echo '<p>Automatic sync: Liveblog reader polling (throttled), with WP-Cron fallback every minute. No systemd service required.</p>';
+        echo '<p>WP-Cron requires visits reaching WordPress; if both WordPress traffic and Liveblog readers are absent, synchronization is delayed. Manual fallback: <code>wp etherpad-liveblog run --once</code>.</p></div>';
     }
 
     private static function has_credentials() {
