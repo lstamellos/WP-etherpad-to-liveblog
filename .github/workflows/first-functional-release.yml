@@ -26,6 +26,7 @@ jobs:
           php tests/updater-smoke.php
           php tests/integration-smoke.php
           php tests/admin-ajax-smoke.php
+          php tests/public-export-smoke.php
           node --check assets/admin.js
       - name: Validate requested release tag
         shell: bash
@@ -61,5 +62,5 @@ jobs:
           else
             gh release create "$TAG" wp-etherpad-to-liveblog.zip \
               --target "$GITHUB_SHA" --title "$TAG — Etherpad to Liveblog MVP patch" \
-              --notes "Fix WordPress post editor Connect pad form: use authenticated AJAX; plugin now confirms persisted connection and reports errors. Existing POSTOK / NOPUB worker unchanged. Staging verification recommended."
+              --notes "v0.3.0: Connect public Etherpad pads from any HTTPS instance without API credentials. Native public TXT and .etherpad revision exports preserve POSTOK/NOPUB publication and prior-entry edits. Staging verification required before production use."
           fi
