@@ -38,7 +38,7 @@ This archive must be packaged **from the tag**, not from a moving `main`. Never 
 ## Update safety and deployment
 
 - Keep backups and use staging before production.
-- The short-interval Etherpad synchronization worker is **not implemented in the scaffold**. Once implemented, upgrading plugin files while a long-running PHP WP-CLI worker is active must trigger an orderly worker restart/reload or controlled pause/resume. This must be tested before enabling automatic updates on the production site.
+- The WP-CLI synchronization worker is implemented. Use a supervisor invoking separate `--once` runs so new plugin files load on the next run; a long-running `run --interval=2` process must be restarted after updates. Test restart/reload before enabling unattended updates on production.
 - If rollback is needed, reinstall the previous tagged ZIP explicitly; never rely on a failed GitHub API request to reverse an installed version.
 - GitHub release ZIPs are code-distribution artifacts. Restrict repository write/release permissions and ensure CI completes before trusting a release.
 

@@ -2,13 +2,13 @@
 
 WordPress plugin that publishes live field reporting written collaboratively in **Etherpad** as entries in **Automattic Liveblog**.
 
-**Version 0.2.1 — first functional MVP with WordPress connection fix.** The implementation and automated mock integration tests are available. It has **not yet been validated against the actual pad.omniatv.com / omniatv.com installations**. Use staging before production.
+**Version 0.3.0 — functional MVP with credential-free public Etherpad exports.** The implementation and automated mock integration tests are available. It has **not yet been validated against the actual pad.omniatv.com / omniatv.com installations**. Use staging before production.
 
 ## Editor workflow
 
 1. Enable Automattic Liveblog on a WordPress post.
-2. Configure server-side Etherpad API credentials in `wp-config.php` (see below).
-3. Open the post editor and find **Etherpad → Liveblog**. The Connect/Pause/Resume/Disconnect controls submit independently via WordPress AJAX and show errors directly in the panel. Paste `https://pad.omniatv.com/p/<padID>`, acknowledge that the pad is writable only by authorized reporters, and click **Connect pad**.
+2. Choose a publicly readable pad from any HTTPS Etherpad instance. No API keys or OAuth credentials are needed.
+3. In **Etherpad → Liveblog**, paste the full URL, e.g. `https://pad.omniatv.com/p/<padID>` or `https://another-pad.example.org/p/<padID>`, and click **Connect pad**. Controls use WordPress AJAX.
 4. Run the dedicated WP-CLI worker. The WordPress post editor shows connected pad, status, last revision and errors. Pause/resume/disconnect from the same box.
 
 **Initial connection baselines existing POSTOK lines without publishing them retrospectively.** One Etherpad pad can be linked to only one Liveblog at a time and vice versa.
@@ -33,22 +33,20 @@ POSTOK
 
 Do not move or delete old POSTOK markers; the worker checks Etherpad changesets and safely pauses on structural ambiguity instead of risking a wrong-entry edit.
 
-## Configuration
+## Public Etherpad connections (default)
 
-Set the following in WordPress `wp-config.php` (outside web-visible files and Git):
+New pad connections use Etherpad's standard public export endpoints, without an Etherpad account or API authentication:
 
-```php
-define( 'WPELB_ETHERPAD_BASE_URL', 'https://pad.omniatv.com' );
-// Prefer OAuth client credentials for recent Etherpad deployments:
-define( 'WPELB_ETHERPAD_CLIENT_ID', 'service-client-id' );
-define( 'WPELB_ETHERPAD_CLIENT_SECRET', 'secret-from-server-configuration' );
-// OR a preissued bearer token:
-// define( 'WPELB_ETHERPAD_BEARER_TOKEN', '...' );
-// OR a legacy Etherpad API key:
-// define( 'WPELB_ETHERPAD_API_KEY', '...' );
-```
+- `/p/<padID>/export/txt`: lightweight text snapshot, polled approximately every 2 seconds.
+- `/p/<padID>/export/etherpad`: full native pad export, containing revision IDs and changesets. Fetched initially and only when the text changes to retain block identity safely.
 
-Credentials are exchanged **server-side** over HTTPS. OAuth credentials are exchanged at `/oidc/token`, with an in-memory cached bearer token. Legacy API keys go in POST bodies, never browser scripts or URL query strings.
+Use a full HTTPS pad URL from any publicly resolvable Etherpad instance. Pad mappings are unique by **origin + pad ID**. WordPress checks the destination hostname, blocks private/internal hosts and unexpected ports, disables redirects and limits download size (TXT: 800 KB, archive: 8 MiB). No cookies or credentials are sent.
+
+Both export routes must be publicly readable to the WordPress server. If Cloudflare applies an automated challenge, narrowly allow the WordPress egress IP to access these two export paths; the prior `/api` exception alone does not cover them. No changes to privileged Etherpad API access are needed.
+
+**Compatibility:** pre-existing links without a stored origin continue using the old authenticated API client. For those connections only, optional `WPELB_ETHERPAD_BASE_URL` and `WPELB_ETHERPAD_API_KEY` or OAuth/bearer credentials may still be needed.
+
+**Limits:** the public archive contains full revision history and can grow beyond 8 MiB. On inaccessible/inconsistent or oversized exports, sync stops safely rather than guessing marker identity. Rich text and Etherpad lists are not yet transferred reliably; this MVP is for ordinary plain-text reporting.
 
 ### Worker
 
@@ -64,7 +62,7 @@ For automatic upgrades, prefer the **short-lived `--once` mode launched repeated
 
 ## Implemented behavior
 
-- Pull via Etherpad `getRevisionsCount`, `getText(rev)` and `getRevisionChangeset(rev)`; track POSTOK marker anchors through revision changesets (including Unicode UTF-16 offsets).
+- Anonymous public TXT and native revision exports; existing authenticated links retain `getRevisionsCount` / `getText` / `getRevisionChangeset`. POSTOK anchors track changesets (including Unicode UTF-16 offsets).
 - Publish only completed public blocks with `WPCOM_Liveblog_Entry::insert()`; update originals with `WPCOM_Liveblog_Entry::update()`.
 - Per-block 5s debounce; new POSTOK publishes on the next successful worker pass; unclosed NOPUB tails never leak.
 - Manual WordPress edit detection and safe block-level conflicts, sticky pending operations on uncertain writes, single-flight worker locks, error reporting and pause/resume.
@@ -88,6 +86,7 @@ find . -name '*.php' -print0 | xargs -0 -n1 php -l
 php tests/integration-smoke.php
 php tests/updater-smoke.php
 php tests/admin-ajax-smoke.php
+php tests/public-export-smoke.php
 node --check assets/admin.js
 ```
 

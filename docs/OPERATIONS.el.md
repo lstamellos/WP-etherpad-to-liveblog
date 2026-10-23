@@ -1,4 +1,4 @@
-# Διαχείριση λειτουργικής έκδοσης 0.2.1
+# Διαχείριση λειτουργικής έκδοσης 0.3.0
 
 **Πριν από παραγωγή:** απαιτείται δοκιμή staging με τις εγκατεστημένες εκδόσεις Etherpad/Liveblog. Ο μηχανισμός δοκιμάστηκε με mock APIs, όχι ακόμη σε πραγματική εγκατάσταση.
 
@@ -6,18 +6,14 @@
 
 1. Ενεργό Automattic Liveblog στο WordPress και δικαιώματα editor/publisher.
 2. Μη δημόσια επεξεργάσιμο Etherpad. Κάθε χρήστης με δικαίωμα εγγραφής μπορεί να ενεργοποιήσει POSTOK· **μη συνδέετε δημόσιο pad χωρίς έλεγχο πρόσβασης**.
-3. Πρόσβαση εξυπηρετητή WordPress προς `https://pad.omniatv.com/api` και Etherpad API bearer/OAuth credentials ή legacy key μέσω `wp-config.php`.
+3. Πρόσβαση του WordPress server στα δημόσια HTTPS endpoints `/p/<padID>/export/txt` και `/p/<padID>/export/etherpad`, χωρίς API credentials.
 4. Dedicated OS account για τον WP-CLI worker, με κανονικά δικαιώματα στο WordPress.
 
-Παράδειγμα `wp-config.php`:
+Για **νέες συνδέσεις** δεν απαιτείται καμία ρύθμιση στο `wp-config.php`: εισάγεται το πλήρες URL δημόσια αναγνώσιμου pad, από οποιοδήποτε HTTPS Etherpad instance. Το plugin δεν στέλνει credentials στο Etherpad.
 
-```php
-define( 'WPELB_ETHERPAD_BASE_URL', 'https://pad.omniatv.com' );
-define( 'WPELB_ETHERPAD_CLIENT_ID', 'YOUR_CLIENT_ID' );
-define( 'WPELB_ETHERPAD_CLIENT_SECRET', 'YOUR_CLIENT_SECRET' );
-```
+Σε περίπτωση Cloudflare Challenge, η εξαίρεση πρέπει να αφορά τη δημόσια IP του WordPress server και **μόνο** τα συγκεκριμένα export endpoints (`/p/<padID>/export/txt` και `/p/<padID>/export/etherpad`). Η προηγούμενη εξαίρεση `/api` δεν καλύπτει τις εξαγωγές.
 
-Εναλλακτικά ορίζεται `WPELB_ETHERPAD_API_KEY` (παλαιότερο Etherpad) ή `WPELB_ETHERPAD_BEARER_TOKEN`. Ποτέ στο GitHub ή μέσα στο pad.
+Οι παλιές, ήδη αποθηκευμένες συνδέσεις χωρίς `origin` διατηρούν τον προηγούμενο API client και τυχόν υπάρχουσα αυθεντικοποίηση. Η πρώτη σύνδεση κάνει baseline χωρίς αναδρομική δημοσίευση.
 
 ## Σύνδεση
 
@@ -47,6 +43,6 @@ sudo -u WWW_USER wp etherpad-liveblog run --once --path=/PATH/TO/WORDPRESS
 
 ## Όρια MVP
 
-Plain text (παράγραφοι, αλλαγές γραμμής), όχι rich text Etherpad. Meta box σε posts, όχι ακόμη σε custom post types. Οι νέες δημοσιεύσεις εμφανίζονται στον επόμενο κύκλο και οι διορθώσεις όταν παρέλθουν 5 δευτερόλεπτα από την τελευταία παρατηρημένη αλλαγή **στο συγκεκριμένο block**.
+Plain text (παράγραφοι, αλλαγές γραμμής), όχι rich text Etherpad. Το δημόσιο archive διατηρεί ολόκληρο το ιστορικό και έχει όριο 8 MiB· μεγάλες ή ασυνεπείς εξαγωγές απαιτούν έλεγχο. Meta box σε posts, όχι ακόμη σε custom post types. Οι νέες δημοσιεύσεις εμφανίζονται στον επόμενο κύκλο και οι διορθώσεις όταν παρέλθουν 5 δευτερόλεπτα από την τελευταία παρατηρημένη αλλαγή **στο συγκεκριμένο block**.
 
 Καμία αυτόματη ενέργεια δεν πρέπει να πραγματοποιηθεί στα παραγωγικά pads πριν τη δοκιμή και τη ρητή σύνδεση από εξουσιοδοτημένο editor.
