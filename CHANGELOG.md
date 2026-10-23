@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 — 2026-10-24
+
+- Added signed HMAC-SHA256 Etherpad padUpdate webhook receiver at `POST /wp-json/wpelb/v1/notify`; shared secret lives only in server-side configuration.
+- Bound notifications to an existing active mapping by exact public instance origin and pad ID; no body-selected WordPress post and no direct unauthenticated publishing.
+- Uses the existing revision-aware single-flight synchronizer after the REST response (PHP-FPM) or deferred WP-Cron (non-FPM), preserving POSTOK, corrections and crash safety.
+- Keeps native Liveblog polling and WP-Cron as secondary triggers. Recommend independent system cron invoking `wp etherpad-liveblog run --once` every minute as reliable fall-back.
+- The optional Etherpad plugin `ep_liveblog_webhook` is versioned independently and requires its own repository/installation.
+- Added webhook signature, invalid payload, clock-expiry and cross-pad authorization smoke tests.
+
 ## 0.3.1 — 2026-10-23
 
 - Native Automattic Liveblog REST polling activates background post-specific Etherpad sync, throttled across concurrent readers without modifying Liveblog.
