@@ -16,6 +16,8 @@ final class WPELB_Plugin {
         WPELB_Sync_Worker::register();
         require_once __DIR__ . '/class-wpelb-liveblog-poll-trigger.php';
         WPELB_Liveblog_Poll_Trigger::register();
+        require_once __DIR__ . '/class-wpelb-webhook.php';
+        WPELB_Webhook::register();
         if ( is_admin() ) {
             require_once __DIR__ . '/class-wpelb-admin.php';
             WPELB_Admin::register();
