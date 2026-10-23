@@ -2,14 +2,14 @@
 
 WordPress plugin that publishes live field reporting written collaboratively in **Etherpad** as entries in **Automattic Liveblog**.
 
-**Version 0.3.0 — functional MVP with credential-free public Etherpad exports.** The implementation and automated mock integration tests are available. It has **not yet been validated against the actual pad.omniatv.com / omniatv.com installations**. Use staging before production.
+**Version 0.3.1 — credential-free Etherpad and service-free polling-based synchronization.** Initial pad connection and manual POSTOK publication have been verified on the OmniaTV test Liveblog. Liveblog-triggered automation and published-entry edits still require live verification.
 
 ## Editor workflow
 
 1. Enable Automattic Liveblog on a WordPress post.
 2. Choose a publicly readable pad from any HTTPS Etherpad instance. No API keys or OAuth credentials are needed.
 3. In **Etherpad → Liveblog**, paste the full URL, e.g. `https://pad.omniatv.com/p/<padID>` or `https://another-pad.example.org/p/<padID>`, and click **Connect pad**. Controls use WordPress AJAX.
-4. Run the dedicated WP-CLI worker. The WordPress post editor shows connected pad, status, last revision and errors. Pause/resume/disconnect from the same box.
+4. Synchronization begins automatically when readers poll the Liveblog REST endpoint; WP-Cron is a minute-level fallback when the WordPress site receives uncached visits. The editor shows pad, status, revision and errors. Manual WP-CLI sync remains available.
 
 **Initial connection baselines existing POSTOK lines without publishing them retrospectively.** One Etherpad pad can be linked to only one Liveblog at a time and vice versa.
 
@@ -37,7 +37,7 @@ Do not move or delete old POSTOK markers; the worker checks Etherpad changesets 
 
 New pad connections use Etherpad's standard public export endpoints, without an Etherpad account or API authentication:
 
-- `/p/<padID>/export/txt`: lightweight text snapshot, polled approximately every 2 seconds.
+- `/p/<padID>/export/txt`: lightweight text snapshot, checked during a triggered synchronization (at most once per 5 seconds per post from Liveblog polling).
 - `/p/<padID>/export/etherpad`: full native pad export, containing revision IDs and changesets. Fetched initially and only when the text changes to retain block identity safely.
 
 Use a full HTTPS pad URL from any publicly resolvable Etherpad instance. Pad mappings are unique by **origin + pad ID**. WordPress checks the destination hostname, blocks private/internal hosts and unexpected ports, disables redirects and limits download size (TXT: 800 KB, archive: 8 MiB). No cookies or credentials are sent.
@@ -48,17 +48,21 @@ Both export routes must be publicly readable to the WordPress server. If Cloudfl
 
 **Limits:** the public archive contains full revision history and can grow beyond 8 MiB. On inaccessible/inconsistent or oversized exports, sync stops safely rather than guessing marker identity. Rich text and Etherpad lists are not yet transferred reliably; this MVP is for ordinary plain-text reporting.
 
-### Worker
+### Automatic synchronization without a separate worker service
 
-Run from the WordPress installation directory as the appropriate OS user:
+Native Automattic Liveblog reader polling requests to `/wp-json/liveblog/v1/{post_id}/entries/{start}/{end}/` trigger a **throttled, per-post** synchronization when they reach WordPress. The original Liveblog React code and REST responses are not modified. On PHP-FPM, the polling response is finished before Etherpad export fetching begins; on other SAPIs, the work is deferred through WP-Cron so a reader does not wait on remote exports.
+
+A second trigger is provided by WordPress **WP-Cron** at one-minute intervals, checking all active linked pads. Both paths use the same revision-aware `WPELB_Sync_Worker::sync()` method and its single-flight publication lock. These triggers do **not** require systemd, a daemon or a persistent WP-CLI process.
+
+**Timing is traffic-dependent:** when no readers have the Liveblog open, the periodic fallback executes on the next uncached PHP request that starts due WordPress cron. If `DISABLE_WP_CRON` is true, WordPress cron is blocked or requests are served entirely from CDN caches, a live polling trigger may be the only automatic mechanism. This design cannot guarantee 2-second unattended delivery in complete inactivity.
+
+For diagnostics or a one-time immediate synchronization, run:
 
 ```bash
 wp etherpad-liveblog run --once
-# or use a persistent loop managed by systemd:
-wp etherpad-liveblog run --interval=2
 ```
 
-For automatic upgrades, prefer the **short-lived `--once` mode launched repeatedly** by a supervisor; each invocation reloads PHP/plugin code (see [operations guide](docs/OPERATIONS.el.md)). No worker is automatically launched on plugin activation; WP-Cron alone cannot guarantee 2-second polling.
+For heavy production Liveblogs requiring guaranteed latency without readers, use an independent server-side scheduler or event-driven Etherpad webhook instead; live frontend polling alone does not provide an always-on clock.
 
 ## Implemented behavior
 
@@ -87,6 +91,7 @@ php tests/integration-smoke.php
 php tests/updater-smoke.php
 php tests/admin-ajax-smoke.php
 php tests/public-export-smoke.php
+php tests/liveblog-poll-trigger-smoke.php
 node --check assets/admin.js
 ```
 
