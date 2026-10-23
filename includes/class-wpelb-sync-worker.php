@@ -65,11 +65,15 @@ final class WPELB_Sync_Worker {
             return self::fail( $post_id, $state, 'The Liveblog is not enabled.', true );
         }
         try {
-            $client = new WPELB_Etherpad_Client();
+            $client = ! empty( $state['origin'] )
+                ? new WPELB_Public_Export_Client( $state['origin'] )
+                : new WPELB_Etherpad_Client();
         } catch ( InvalidArgumentException $e ) {
             return self::fail( $post_id, $state, $e->getMessage(), true );
         }
-        $head = $client->head( $state['pad_id'] );
+        $head = ! empty( $state['origin'] )
+            ? $client->head( $state['pad_id'], $state['public_hash'] ?? '', (int) $state['revision'] )
+            : $client->head( $state['pad_id'] );
         if ( is_wp_error( $head ) ) {
             return self::fail( $post_id, $state, $head );
         }
@@ -113,6 +117,9 @@ final class WPELB_Sync_Worker {
             }
             $state['anchors'] = $actual;
             $state['revision'] = $head;
+            if ( ! empty( $state['origin'] ) ) {
+                $state['public_hash'] = $client->last_text_hash();
+            }
             foreach ( $parsed['blocks'] as $i => $content ) {
                 if ( ! isset( $blocks[$i] ) ) {
                     $blocks[$i] = array( 'status' => '' === $content ? 'skipped' : 'ready' );
