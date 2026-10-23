@@ -2,13 +2,13 @@
 
 WordPress plugin that publishes live field reporting written collaboratively in **Etherpad** as entries in **Automattic Liveblog**.
 
-**Version 0.2.0 — first functional MVP.** The implementation and automated mock integration tests are available. It has **not yet been validated against the actual pad.omniatv.com / omniatv.com installations**. Use staging before production.
+**Version 0.2.1 — first functional MVP with WordPress connection fix.** The implementation and automated mock integration tests are available. It has **not yet been validated against the actual pad.omniatv.com / omniatv.com installations**. Use staging before production.
 
 ## Editor workflow
 
 1. Enable Automattic Liveblog on a WordPress post.
 2. Configure server-side Etherpad API credentials in `wp-config.php` (see below).
-3. Open the post editor and find **Etherpad → Liveblog**. Paste `https://pad.omniatv.com/p/<padID>`, acknowledge that the pad is writable only by authorized reporters, and click **Connect pad**.
+3. Open the post editor and find **Etherpad → Liveblog**. The Connect/Pause/Resume/Disconnect controls submit independently via WordPress AJAX and show errors directly in the panel. Paste `https://pad.omniatv.com/p/<padID>`, acknowledge that the pad is writable only by authorized reporters, and click **Connect pad**.
 4. Run the dedicated WP-CLI worker. The WordPress post editor shows connected pad, status, last revision and errors. Pause/resume/disconnect from the same box.
 
 **Initial connection baselines existing POSTOK lines without publishing them retrospectively.** One Etherpad pad can be linked to only one Liveblog at a time and vice versa.
@@ -87,6 +87,8 @@ For automatic upgrades, prefer the **short-lived `--once` mode launched repeated
 find . -name '*.php' -print0 | xargs -0 -n1 php -l
 php tests/integration-smoke.php
 php tests/updater-smoke.php
+php tests/admin-ajax-smoke.php
+node --check assets/admin.js
 ```
 
 [Architecture](docs/ARCHITECTURE.md) · [Pad protocol](docs/PAD-PROTOCOL.md) · [Greek development plan](docs/DEVELOPMENT-PLAN.el.md) · [Testing](docs/TEST-PLAN.md) · [Operations](docs/OPERATIONS.el.md) · [Releases](docs/RELEASING.md)
