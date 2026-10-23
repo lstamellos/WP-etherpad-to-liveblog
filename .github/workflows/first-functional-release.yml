@@ -28,6 +28,7 @@ jobs:
           php tests/admin-ajax-smoke.php
           php tests/public-export-smoke.php
           php tests/liveblog-poll-trigger-smoke.php
+          php tests/webhook-receiver-smoke.php
           node --check assets/admin.js
       - name: Validate requested release tag
         shell: bash
@@ -63,5 +64,5 @@ jobs:
           else
             gh release create "$TAG" wp-etherpad-to-liveblog.zip \
               --target "$GITHUB_SHA" --title "$TAG — Etherpad to Liveblog MVP patch" \
-              --notes "v0.3.1: Native Liveblog polling triggers safe Etherpad sync without systemd, plus a WordPress WP-Cron fallback. Credential-free public Etherpad exports continue to work. Requires live traffic reaching WordPress for automatic activity; verify on test Liveblog."
+              --notes "v0.4.0: Signed Etherpad padUpdate webhook receiver, keeping safe public-export synchronizer, Liveblog poll and WP-Cron triggers. Independent system cron recommended for reliable one-minute fallback. The optional ep_liveblog_webhook Etherpad package is distributed separately."
           fi
