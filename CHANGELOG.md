@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 — 2026-10-23
+
+- No Etherpad API credentials required for new pad connections; a publicly readable pad URL on any public HTTPS Etherpad instance is supported.
+- Public TXT snapshots identify text changes; native .etherpad exports provide revision IDs and changesets to retain safe published-block identity for updates.
+- Existing connected pads using authenticated HTTP API continue to work; new bindings store the pad's canonical instance origin and are unique per origin and pad ID.
+- WordPress safe-URL/hostname validation, no redirects, no cookies/credentials, strict response-size limits; failure to access exports stops sync safely.
+- GitHub Actions smoke tests added for anonymous exports and cross-instance URLs.
+
 ## 0.2.1 — 2026-10-23
 
 - Fixed broken Etherpad pad connection controls in the WordPress post editor: replaced invalid nested HTML forms with authenticated, permission-checked AJAX actions.
