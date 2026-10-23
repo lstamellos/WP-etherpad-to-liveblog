@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 — 2026-10-23
+
+- Fixed broken Etherpad pad connection controls in the WordPress post editor: replaced invalid nested HTML forms with authenticated, permission-checked AJAX actions.
+- Added immediately visible AJAX validation/errors and refreshed connection status after successful actions.
+- Added regression tests for connect, status persistence, nonce enforcement, pause and form markup.
+- No changes to the existing Etherpad/Liveblog worker protocol.
+
 ## 0.2.0 — 2026-10-23
 
 - First functional MVP: Etherpad read API, persistent liveblog connection, per-block POSTOK publication, NOPUB exclusions, changeset-based boundary verification and independent 5-second edit debounce.
