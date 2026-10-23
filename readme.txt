@@ -3,7 +3,7 @@ Contributors: lstamellos
 Tags: etherpad, liveblog, journalism, wordpress
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 0.3.0
+Stable tag: 0.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -11,14 +11,14 @@ Publish live reporting from Etherpad into Automattic Liveblog.
 
 == Description ==
 
-Functional MVP for connecting one Etherpad pad to one Automattic Liveblog, with POSTOK publication, NOPUB note exclusion and per-block 5-second edit debounce. Rich text formatting is not transferred in this version. An external WP-CLI worker must be configured.
+Functional MVP with POSTOK publication, NOPUB exclusions and per-block edit sync. Native Liveblog reader polling triggers synchronizations with a minute-level WP-Cron fallback; no systemd service is required. Rich text formatting is not transferred.
 
 == Installation ==
 
 1. Install Automattic Liveblog and enable it on a post.
 2. Install this plugin. No Etherpad API credentials are required for publicly readable pads.
 3. In the Liveblog post editor, connect a public HTTPS Etherpad pad from any instance in the Etherpad → Liveblog box.
-4. Run wp etherpad-liveblog run --once periodically or as a managed service.
+4. Publishing is driven automatically by Liveblog polling when readers have the page open, with WP-Cron fallback. For debugging, run wp etherpad-liveblog run --once.
 5. Test on staging before production. See README.md and docs/OPERATIONS.el.md.
 
 == Updates ==
@@ -26,6 +26,11 @@ Functional MVP for connecting one Etherpad pad to one Automattic Liveblog, with 
 The plugin checks published stable GitHub Releases using the native WordPress plugin-update mechanism. Administrators may enable automatic updates from the WordPress Plugins page.
 
 == Changelog ==
+
+= 0.3.1 =
+* Service-free automatic sync: use the native Liveblog REST polling as a throttled trigger, without modifying Liveblog.
+* WP-Cron fallback for periods without Liveblog readers when WordPress traffic reaches PHP.
+* Keep WP-CLI worker as manual fallback; protect concurrent visitors with atomic per-post throttling and existing publication locks.
 
 = 0.3.0 =
 * Credential-free public Etherpad connection from any publicly accessible HTTPS instance.
