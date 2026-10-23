@@ -42,7 +42,7 @@ final class WPELB_Admin {
         if ( ! current_user_can( 'manage_options' ) ) { wp_die( 'Not allowed' ); }
         echo '<div class="wrap"><h1>Etherpad to Liveblog</h1><p>Version ' . esc_html( WPELB_VERSION ) . '</p>';
         echo '<p>Liveblog API: ' . esc_html( class_exists( 'WPCOM_Liveblog_Entry' ) ? 'Detected' : 'Missing' ) . '</p>';
-        echo '<p>Etherpad credentials: ' . esc_html( self::has_credentials() ? 'Configured' : 'Missing' ) . '</p>';
+        echo '<p>Public Etherpad exports: No API credentials required.</p>';
         echo '<p>WP-CLI worker required: <code>wp etherpad-liveblog run --interval=2</code> (configure persistent systemd service).</p>';
         echo '<p>No background worker is launched by activating this plugin. Publishing is disabled until a pad is linked and the worker is running.</p></div>';
     }
@@ -68,7 +68,7 @@ final class WPELB_Admin {
         $state_status = $state['status'] ?? '';
         echo '<p>Liveblog: <strong>' . esc_html( class_exists( 'WPCOM_Liveblog' ) ? (string) WPCOM_Liveblog::get_liveblog_state( $post->ID ) : 'unavailable' ) . '</strong></p>';
         if ( $state_status ) {
-            echo '<p>Pad: <code>' . esc_html( $state['pad_id'] ) . '</code><br>Status: <strong>' . esc_html( $state_status ) . '</strong><br>Revision: ' . esc_html( (string) $state['revision'] ) . '</p>';
+            echo '<p>Pad: <code>' . esc_html( isset( $state['origin'] ) ? $state['origin'] . '/p/' . $state['pad_id'] : $state['pad_id'] ) . '</code><br>Status: <strong>' . esc_html( $state_status ) . '</strong><br>Revision: ' . esc_html( (string) $state['revision'] ) . '</p>';
             if ( ! empty( $state['last_error'] ) ) {
                 echo '<p role="alert"><strong>Error:</strong> ' . esc_html( $state['last_error'] ) . '</p>';
             }
@@ -91,7 +91,7 @@ final class WPELB_Admin {
             echo '<button type="button" class="button" data-wpelb-operation="disconnect">Disconnect</button>';
             echo '</div>';
         } else {
-            echo '<p>Connect an existing pad. Previous POSTOK lines are ignored on first link.</p>';
+            echo '<p>Connect a public HTTPS Etherpad pad (any instance). No Etherpad API credentials required. Previous POSTOK lines are ignored on first link.</p>';
             self::form_open( $post->ID );
             echo '<label for="wpelb-pad-url">Etherpad URL</label><input id="wpelb-pad-url" class="widefat" type="url" name="pad_url" placeholder="https://pad.omniatv.com/p/example" required />';
             echo '<p><label><input type="checkbox" name="pad_acl_ack" value="1" required /> I confirm that only trusted reporters can edit this pad.</label></p>';
@@ -133,17 +133,17 @@ final class WPELB_Admin {
         $state = WPELB_Mapping_Store::get( $post_id );
         $result = true;
         if ( 'connect' === $operation ) {
-            if ( $state || empty( $_POST['pad_acl_ack'] ) || ! WPELB_Liveblog_Adapter::available( $post_id ) || ! self::has_credentials() ) {
-                $result = new WP_Error( 'wpelb_connect', 'Existing connection, missing pad access acknowledgement, inactive Liveblog or missing credentials.' );
+            if ( $state || empty( $_POST['pad_acl_ack'] ) || ! WPELB_Liveblog_Adapter::available( $post_id ) ) {
+                $result = new WP_Error( 'wpelb_connect', 'Existing connection, missing editor acknowledgement or inactive Liveblog.' );
             } else {
-                $pad = WPELB_Etherpad_Client::pad_id_from_url( esc_url_raw( wp_unslash( $_POST['pad_url'] ?? '' ) ) );
-                if ( is_wp_error( $pad ) ) {
-                    $result = $pad;
+                $target = WPELB_Public_Export_Client::connection_from_url( esc_url_raw( wp_unslash( $_POST['pad_url'] ?? '' ) ) );
+                if ( is_wp_error( $target ) ) {
+                    $result = $target;
                 } else {
                     try {
-                        $client = new WPELB_Etherpad_Client();
-                        $rev = $client->head( $pad );
-                        $text = is_wp_error( $rev ) ? $rev : $client->text( $pad, $rev );
+                        $client = new WPELB_Public_Export_Client( $target['origin'] );
+                        $rev = $client->head( $target['pad_id'] );
+                        $text = is_wp_error( $rev ) ? $rev : $client->text( $target['pad_id'], $rev );
                         if ( is_wp_error( $text ) ) {
                             $result = $text;
                         } elseif ( strlen( $text ) > 800000 ) {
@@ -152,19 +152,33 @@ final class WPELB_Admin {
                             $parsed = WPELB_Block_Parser::parse( $text );
                             $anchors = WPELB_Block_Matcher::anchors( $text, $parsed['markers'] );
                             if ( $parsed['error'] || is_wp_error( $anchors ) ) {
-                                $result = new WP_Error( 'wpelb_invalid', 'Pad has incomplete markers or invalid encoding.' );
+                                $result = new WP_Error( 'wpelb_invalid', 'Pad has invalid markers or encoding.' );
                             } else {
-                                $reserved = WPELB_Mapping_Store::reserve( $post_id, $pad );
+                                $pad_ref = $target['origin'] . '/p/' . $target['pad_id'];
+                                $reserved = WPELB_Mapping_Store::reserve( $post_id, $pad_ref );
                                 if ( is_wp_error( $reserved ) ) {
                                     $result = $reserved;
                                 } else {
                                     $blocks = array();
-                                    foreach ( $parsed['blocks'] as $content ) { $blocks[] = array( 'status' => 'skipped' ); }
-                                    WPELB_Mapping_Store::save( $post_id, array(
-                                        'pad_id' => $pad, 'status' => 'active', 'revision' => $rev,
-                                        'anchors' => $anchors, 'blocks' => $blocks,
-                                        'author_id' => get_current_user_id(), 'last_error' => '',
-                                    ) );
+                                    foreach ( $parsed['blocks'] as $content ) {
+                                        $blocks[] = array( 'status' => 'skipped' );
+                                    }
+                                    $state_data = array(
+                                        'origin' => $target['origin'],
+                                        'pad_id' => $target['pad_id'],
+                                        'pad_ref' => $pad_ref,
+                                        'public_hash' => $client->last_text_hash(),
+                                        'status' => 'active',
+                                        'revision' => $rev,
+                                        'anchors' => $anchors,
+                                        'blocks' => $blocks,
+                                        'author_id' => get_current_user_id(),
+                                        'last_error' => '',
+                                    );
+                                    if ( false === WPELB_Mapping_Store::save( $post_id, $state_data ) ) {
+                                        WPELB_Mapping_Store::unreserve( $post_id, $pad_ref );
+                                        $result = new WP_Error( 'wpelb_storage', 'Could not persist the Etherpad connection.' );
+                                    }
                                 }
                             }
                         }
@@ -188,7 +202,7 @@ final class WPELB_Admin {
                 }
             }
             if ( ! is_wp_error( $result ) ) {
-                WPELB_Mapping_Store::unreserve( $post_id, $state['pad_id'] );
+                WPELB_Mapping_Store::unreserve( $post_id, $state['pad_ref'] ?? $state['pad_id'] );
                 delete_post_meta( $post_id, WPELB_Mapping_Store::META );
             }
         } else {
