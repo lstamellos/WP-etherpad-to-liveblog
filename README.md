@@ -2,14 +2,14 @@
 
 WordPress plugin that publishes live field reporting written collaboratively in **Etherpad** as entries in **Automattic Liveblog**.
 
-**Version 0.3.1 — credential-free Etherpad and service-free polling-based synchronization.** Initial pad connection and manual POSTOK publication have been verified on the OmniaTV test Liveblog. Liveblog-triggered automation and published-entry edits still require live verification.
+**Version 0.4.0 — signed Etherpad webhooks and independent cron recovery.** Initial pad connection and manual POSTOK publication have been verified on the OmniaTV test Liveblog. Liveblog-triggered automation and published-entry edits still require live verification.
 
 ## Editor workflow
 
 1. Enable Automattic Liveblog on a WordPress post.
 2. Choose a publicly readable pad from any HTTPS Etherpad instance. No API keys or OAuth credentials are needed.
 3. In **Etherpad → Liveblog**, paste the full URL, e.g. `https://pad.omniatv.com/p/<padID>` or `https://another-pad.example.org/p/<padID>`, and click **Connect pad**. Controls use WordPress AJAX.
-4. Synchronization begins automatically when readers poll the Liveblog REST endpoint; WP-Cron is a minute-level fallback when the WordPress site receives uncached visits. The editor shows pad, status, revision and errors. Manual WP-CLI sync remains available.
+4. Native Liveblog polling still triggers sync; on supported instances, the optional Etherpad padUpdate webhook triggers sync immediately. Configure independent system cron once per minute for guaranteed fallback, including pads hosted elsewhere. The editor shows pad, status, revision and errors.
 
 **Initial connection baselines existing POSTOK lines without publishing them retrospectively.** One Etherpad pad can be linked to only one Liveblog at a time and vice versa.
 
@@ -48,11 +48,39 @@ Both export routes must be publicly readable to the WordPress server. If Cloudfl
 
 **Limits:** the public archive contains full revision history and can grow beyond 8 MiB. On inaccessible/inconsistent or oversized exports, sync stops safely rather than guessing marker identity. Rich text and Etherpad lists are not yet transferred reliably; this MVP is for ordinary plain-text reporting.
 
+### Signed Etherpad webhooks (optional, faster)
+
+The WordPress bridge accepts signed `padUpdate` notifications at:
+
+```text
+POST https://omniatv.com/wp-json/wpelb/v1/notify
+```
+
+Set a random **server-side** secret in `wp-config.php` (at least 32 characters, before `wp-settings.php` is loaded):
+
+```php
+define( 'WPELB_WEBHOOK_SECRET', 'REPLACE_WITH_OPENSSL_RAND_HEX_32_VALUE' );
+```
+
+Use the same secret for the optional Etherpad plugin **`ep_liveblog_webhook`** (a separately versioned npm package, not part of this WordPress plugin). A notification carries only the public Etherpad origin, pad ID and revision, plus a unique event ID, timestamp and `HMAC-SHA256` signature. WordPress verifies the signature and timestamp, then resolves **only an existing active origin + pad mapping**. No public request is allowed to choose a WordPress post to modify. The existing single-flight synchronizer applies the same POSTOK/revision/conflict rules.
+
+The Etherpad plugin sends one notification shortly after changes stop and another after the existing **5-second published-edit debounce**. This ensures edited entries can settle without Liveblog readers. All webhook delivery failures are recoverable via the system cron described below. If Cloudflare blocks signed POSTs, add a narrow source-IP/path/method exception for `/wp-json/wpelb/v1/notify`, not a global WAF bypass.
+
+### Independent system cron (recommended reliable fallback)
+
+WP-Cron is traffic-driven and Liveblog polling requires readers. To guarantee synchronization even when no one visits the site, use the **host operating system's cron**, e.g. via Virtualmin/Webmin. Run this command as the WordPress OS user **once per minute**:
+
+```crontab
+* * * * * flock -n /HOME/ACCOUNT/.wpelb-cron.lock /ABSOLUTE/PATH/TO/wp --path=/ABSOLUTE/PATH/TO/WORDPRESS etherpad-liveblog run --once
+```
+
+Replace the placeholders with actual server paths and verify `command -v wp`. The lock file should belong to the correct user and reside in a directory that user controls. This is a short-lived **WP-CLI invocation, not a systemd service**. It recovers from missing/failed Etherpad webhook deliveries, handles third-party pads without installed plugins, and is not dependent on the WordPress site being visited.
+
 ### Automatic synchronization without a separate worker service
 
-Native Automattic Liveblog reader polling requests to `/wp-json/liveblog/v1/{post_id}/entries/{start}/{end}/` trigger a **throttled, per-post** synchronization when they reach WordPress. The original Liveblog React code and REST responses are not modified. On PHP-FPM, the polling response is finished before Etherpad export fetching begins; on other SAPIs, the work is deferred through WP-Cron so a reader does not wait on remote exports.
+As a supplementary trigger, native Automattic Liveblog reader polling requests to `/wp-json/liveblog/v1/{post_id}/entries/{start}/{end}/` trigger a **throttled, per-post** synchronization when they reach WordPress. The original Liveblog React code and REST responses are not modified. On PHP-FPM, the polling response is finished before Etherpad export fetching begins; on other SAPIs, the work is deferred through WP-Cron so a reader does not wait on remote exports.
 
-A second trigger is provided by WordPress **WP-Cron** at one-minute intervals, checking all active linked pads. Both paths use the same revision-aware `WPELB_Sync_Worker::sync()` method and its single-flight publication lock. These triggers do **not** require systemd, a daemon or a persistent WP-CLI process.
+A second trigger is provided by WordPress **WP-Cron** at one-minute intervals, checking all active linked pads. Both paths use the same revision-aware `WPELB_Sync_Worker::sync()` method and its single-flight publication lock. These triggers do **not** require systemd, a daemon or a persistent WP-CLI process. The independent one-minute system cron above supplies the always-on fallback.
 
 **Timing is traffic-dependent:** when no readers have the Liveblog open, the periodic fallback executes on the next uncached PHP request that starts due WordPress cron. If `DISABLE_WP_CRON` is true, WordPress cron is blocked or requests are served entirely from CDN caches, a live polling trigger may be the only automatic mechanism. This design cannot guarantee 2-second unattended delivery in complete inactivity.
 
@@ -62,7 +90,7 @@ For diagnostics or a one-time immediate synchronization, run:
 wp etherpad-liveblog run --once
 ```
 
-For heavy production Liveblogs requiring guaranteed latency without readers, use an independent server-side scheduler or event-driven Etherpad webhook instead; live frontend polling alone does not provide an always-on clock.
+For faster unattended delivery, install the optional signed Etherpad webhook sender on instances you control. Only the system cron gives a dependable periodic recovery check for other instances.
 
 ## Implemented behavior
 
@@ -92,6 +120,7 @@ php tests/updater-smoke.php
 php tests/admin-ajax-smoke.php
 php tests/public-export-smoke.php
 php tests/liveblog-poll-trigger-smoke.php
+php tests/webhook-receiver-smoke.php
 node --check assets/admin.js
 ```
 
