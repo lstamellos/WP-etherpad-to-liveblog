@@ -20,3 +20,7 @@ jobs:
         run: php tests/updater-smoke.php
       - name: Etherpad / Liveblog integration smoke tests
         run: php tests/integration-smoke.php
+      - name: WordPress admin connection regression tests
+        run: php tests/admin-ajax-smoke.php
+      - name: WordPress admin JavaScript syntax
+        run: node --check assets/admin.js
