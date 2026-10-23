@@ -4,9 +4,8 @@
  * php tests/admin-ajax-smoke.php
  */
 define( 'ABSPATH', '/tmp/wordpress/' );
-define( 'WPELB_VERSION', '0.2.1' );
+define( 'WPELB_VERSION', '0.3.0' );
 define( 'WPELB_PLUGIN_FILE', '/plugins/wp-etherpad-to-liveblog/wp-etherpad-to-liveblog.php' );
-define( 'WPELB_ETHERPAD_API_KEY', 'test-key' );
 
 class AjaxTestExit extends RuntimeException {
     public $payload;
@@ -64,10 +63,14 @@ class WPELB_Mapping_Store {
 class WPELB_Liveblog_Adapter {
     public static function available( $post ) { return true; }
 }
-class WPELB_Etherpad_Client {
-    public static function pad_id_from_url( $url ) { return 'example-pad'; }
+class WPELB_Public_Export_Client {
+    public function __construct( $origin ) {}
+    public static function connection_from_url( $url ) {
+        return array( 'origin' => 'https://pad.omniatv.com', 'pad_id' => 'example-pad' );
+    }
     public function head( $pad ) { return 3; }
     public function text( $pad, $rev ) { return "Prior report\nPOSTOK\n"; }
+    public function last_text_hash() { return hash( 'sha256', "Prior report\nPOSTOK\n" ); }
 }
 class WPELB_Block_Parser {
     public static function parse( $text ) {
@@ -104,7 +107,8 @@ try {
     check( $e->payload['success'] === true, 'Connection response not successful.' );
     check( strpos( $e->payload['data']['html'], 'Status: <strong>active</strong>' ) !== false, 'AJAX response did not show saved active state.' );
 }
-check( WPELB_Mapping_Store::$reserved === 'example-pad', 'Pad reservation was not stored.' );
+check( WPELB_Mapping_Store::$reserved === 'https://pad.omniatv.com/p/example-pad', 'Pad reservation was not stored with origin.' );
+check( WPELB_Mapping_Store::$state['origin'] === 'https://pad.omniatv.com', 'Origin not persisted.' );
 check( WPELB_Mapping_Store::$state['status'] === 'active', 'Pad mapping was not stored.' );
 check( WPELB_Mapping_Store::$state['revision'] === 3, 'Initial revision baseline missing.' );
 check( WPELB_Mapping_Store::$state['blocks'][0]['status'] === 'skipped', 'Existing POSTOK should not be republished.' );
