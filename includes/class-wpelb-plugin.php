@@ -7,6 +7,7 @@ final class WPELB_Plugin {
         require_once __DIR__ . '/class-wpelb-github-updater.php';
         WPELB_GitHub_Updater::register();
         require_once __DIR__ . '/class-wpelb-etherpad-client.php';
+        require_once __DIR__ . '/class-wpelb-public-export-client.php';
         require_once __DIR__ . '/class-wpelb-block-parser.php';
         require_once __DIR__ . '/class-wpelb-block-matcher.php';
         require_once __DIR__ . '/class-wpelb-mapping-store.php';
