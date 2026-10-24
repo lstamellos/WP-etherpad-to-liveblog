@@ -45,6 +45,11 @@ function wp_send_json_success( $data ) {
 function wp_cache_delete( $id, $group ) { return true; }
 function get_post( $id ) { return (object) array( 'ID' => $id ); }
 function get_current_user_id() { return 7; }
+function get_userdata( $id ) { return (int) $id > 0 ? (object) array( 'ID' => (int) $id, 'display_name' => 'Writer ' . $id, 'user_login' => 'writer' . $id ) : false; }
+function user_can( $user, $cap ) { return $user->ID !== 99; }
+function sanitize_text_field( $v ) { return trim( strip_tags( $v ) ); }
+function get_users( $args ) { return array( get_userdata( 12 ), get_userdata( 14 ), get_userdata( 99 ) ); }
+$GLOBALS['wpdb'] = new class { public function esc_like( $text ) { return addcslashes( $text, '_%\\\\' ); } };
 
 class WPCOM_Liveblog_Entry {}
 class WPCOM_Liveblog {
@@ -91,6 +96,8 @@ check( strpos( $html, 'data-wpelb-operation="connect"' ) !== false, 'AJAX connec
 check( strpos( $html, 'type="button"' ) !== false, 'Connect must not submit the post editor.' );
 check( strpos( $html, 'data-nonce="nonce-for-wpelb_action_42"' ) !== false, 'Post-bound nonce missing.' );
 check( strpos( $html, 'name="pad_url"' ) !== false, 'Pad URL field missing.' );
+check( strpos( $html, 'name="wpelb_author_id"' ) !== false, 'Author selector missing.' );
+check( strpos( $html, 'wpelb-author-search' ) !== false, 'Author typeahead missing.' );
 
 $_POST = array(
     'post_id' => '42',
@@ -98,6 +105,7 @@ $_POST = array(
     'wpelb_operation' => 'connect',
     'pad_url' => 'https://pad.omniatv.com/p/example-pad',
     'pad_acl_ack' => '1',
+    'wpelb_author_id' => '12',
 );
 try {
     WPELB_Admin::handle();
@@ -112,6 +120,28 @@ check( WPELB_Mapping_Store::$state['origin'] === 'https://pad.omniatv.com', 'Ori
 check( WPELB_Mapping_Store::$state['status'] === 'active', 'Pad mapping was not stored.' );
 check( WPELB_Mapping_Store::$state['revision'] === 3, 'Initial revision baseline missing.' );
 check( WPELB_Mapping_Store::$state['blocks'][0]['status'] === 'skipped', 'Existing POSTOK should not be republished.' );
+check( WPELB_Mapping_Store::$state['author_id'] === 12, 'Selected author not saved on connection.' );
+check( WPELB_Mapping_Store::$state['publisher_id'] === 7, 'Publishing user must remain authorized connector.' );
+
+$_POST['wpelb_operation'] = 'save_author';
+$_POST['wpelb_author_id'] = '14';
+try { WPELB_Admin::handle(); throw new RuntimeException( 'Expected author update success.' ); }
+catch ( AjaxTestExit $e ) { check( $e->http_status === 200, 'Author update status.' ); }
+check( WPELB_Mapping_Store::$state['author_id'] === 14, 'Author update did not persist.' );
+check( WPELB_Mapping_Store::$state['publisher_id'] === 7, 'Changing author must not change publisher.' );
+$_POST['wpelb_author_id'] = '99';
+try { WPELB_Admin::handle(); throw new RuntimeException( 'Expected unassignable author rejection.' ); }
+catch ( AjaxTestExit $e ) { check( $e->http_status === 400, 'Invalid author not rejected.' ); }
+check( WPELB_Mapping_Store::$state['author_id'] === 14, 'Rejected author mutated state.' );
+$_POST['wpelb_author_id'] = '14';
+$_POST['term'] = 'writ';
+try { WPELB_Admin::author_search(); throw new RuntimeException( 'Expected typeahead response.' ); }
+catch ( AjaxTestExit $e ) {
+    check( $e->http_status === 200, 'Author search status.' );
+    check( count( $e->payload['data']['users'] ) === 2, 'Search must exclude unassignable users.' );
+    check( $e->payload['data']['users'][0]['id'] === 12, 'Search results must identify authors.' );
+}
+unset( $_POST['term'] );
 
 $_POST['nonce'] = 'invalid-token';
 try {
