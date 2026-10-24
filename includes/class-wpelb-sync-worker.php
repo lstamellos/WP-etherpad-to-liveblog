@@ -168,7 +168,7 @@ final class WPELB_Sync_Worker {
             $state['blocks'][$i]['status'] = 'pending';
             WPELB_Mapping_Store::save( $post_id, $state );
             $result = 'ready' === $action
-                ? WPELB_Liveblog_Adapter::insert( $post_id, $html, (int) $state['author_id'] )
+                ? WPELB_Liveblog_Adapter::insert( $post_id, $html, (int) $state['author_id'], (int) ( $state['publisher_id'] ?? $state['author_id'] ) )
                 : WPELB_Liveblog_Adapter::update( $post_id, (int) $block['entry_id'], $html );
             if ( is_wp_error( $result ) ) {
                 $state['last_error'] = $result->get_error_message();
