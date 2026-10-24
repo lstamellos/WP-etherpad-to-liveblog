@@ -2,36 +2,64 @@
 
 WordPress plugin that publishes live field reporting written collaboratively in **Etherpad** as entries in **Automattic Liveblog**.
 
-**Version 0.4.0 — signed Etherpad webhooks and independent cron recovery.** Initial pad connection and manual POSTOK publication have been verified on the OmniaTV test Liveblog. Liveblog-triggered automation and published-entry edits still require live verification.
+**Version 0.5.0 — multilingual publication markers and per-Liveblog author selection.** OmniaTV has verified signed webhooks, new entry publishing, edits to published entries, WordPress-edit precedence and independent cron recovery on a test Liveblog.
 
 ## Editor workflow
 
 1. Enable Automattic Liveblog on a WordPress post.
 2. Choose a publicly readable pad from any HTTPS Etherpad instance. No API keys or OAuth credentials are needed.
-3. In **Etherpad → Liveblog**, paste the full URL, e.g. `https://pad.omniatv.com/p/<padID>` or `https://another-pad.example.org/p/<padID>`, and click **Connect pad**. Controls use WordPress AJAX.
-4. Native Liveblog polling still triggers sync; on supported instances, the optional Etherpad padUpdate webhook triggers sync immediately. Configure independent system cron once per minute for guaranteed fallback, including pads hosted elsewhere. The editor shows pad, status, revision and errors.
+3. In **Etherpad → Liveblog**, paste the full URL, e.g. `https://pad.omniatv.com/p/<padID>` or `https://another-pad.example.org/p/<padID>`. **Search for and select the WordPress author** to attribute new updates to, then click **Connect pad**. Controls use WordPress AJAX. Eligible authors are WordPress users with `edit_posts`; the authenticated connecting editor remains the authorized publisher.
+4. On existing connections, **Save author** changes the attribution for *future* updates only. Edits to old entries keep their original author. Native Liveblog polling still triggers sync; on supported instances, the optional Etherpad padUpdate webhook triggers sync immediately. Configure independent system cron once per minute for guaranteed fallback, including pads hosted elsewhere. The editor shows pad, status, revision and errors.
 
 **Initial connection baselines existing POSTOK lines without publishing them retrospectively.** One Etherpad pad can be linked to only one Liveblog at a time and vice versa.
 
 ## Reporter workflow
 
-Only three standalone commands are needed:
+Type a control word **alone on its own line** (optional surrounding spaces).
+Both commands are case-insensitive and accept Latin, Greek or mixed Greek/Latin
+keyboard layouts, including `POSTOK`, `postok`, `ΠΟΣΤΟΚ`, `ποστοκ`,
+`NOPOST`, `nopost`, `ΝΟΠΟΣΤ`, `νοποστ`.
 
-```
+```text
 Το δικαστήριο διέκοψε τη συνεδρίαση.
-POSTOK
+ποστοκ
 
-NOPUB
-Εσωτερική σημείωση για επιβεβαίωση ονόματος.
-ENDNOPUB
+Εσωτερική σημείωση που δεν πρέπει να δημοσιευτεί.
+νοποστ
 
 Η συνεδρίαση επαναλήφθηκε.
 POSTOK
 ```
 
-`POSTOK` publishes the immediately preceding completed section. `NOPUB` / `ENDNOPUB` hide internal text. Edits in an *already published* section update **the same original Liveblog entry** after **5 seconds without further changes in that section**; typing elsewhere does not reset the timer.
+- **POSTOK** closes the preceding section and publishes it as one Liveblog update.
+- **NOPOST** closes and **discards** the preceding section; this content must not
+  be published and is not stored as a publishable WordPress block.
+- An unfinished section without a command remains a draft.
+- Historic `NOPUB` / `ENDNOPUB` spans are still parsed so old pads do not break.
+  New reporting should use `NOPOST` to discard an entire section instead.
+- Do not rewrite existing markers in a linked pad. Published anchors are
+  revision-tracked; modifying historical markers can pause synchronization for
+  safety (including changing `POSTOK` to `ποστοκ`).
 
-Do not move or delete old POSTOK markers; the worker checks Etherpad changesets and safely pauses on structural ambiguity instead of risking a wrong-entry edit.
+Edits in an *already published* section update **the same original Liveblog
+entry** after **5 seconds without further changes in that section**, unless an
+editor has manually changed the Liveblog entry. Manual WordPress edits always
+take precedence and cause a per-block conflict rather than an overwrite.
+
+### Per-Liveblog authors
+
+The author selector is in the **Etherpad → Liveblog** meta box on each Liveblog.
+Start typing a WordPress display name or username, choose a result and use
+**Connect pad** for a new connection or **Save author** for an existing one.
+Autocomplete is restricted to authorized post editors and only returns users
+with `edit_posts`, consistent with Liveblog's own author assignment checks.
+
+Attribution is independent from publishing permission: the editor who connects
+the pad remains the service publisher, while Liveblog entries are attributed to
+the selected author. Existing entries are **not** retroactively reassigned when
+the selected author changes. Subsequent edits of existing entries retain their
+original author. Legacy links default to the previously stored author and
+publisher unless explicitly changed.
 
 ## Public Etherpad connections (default)
 
@@ -96,7 +124,7 @@ For faster unattended delivery, install the optional signed Etherpad webhook sen
 
 - Anonymous public TXT and native revision exports; existing authenticated links retain `getRevisionsCount` / `getText` / `getRevisionChangeset`. POSTOK anchors track changesets (including Unicode UTF-16 offsets).
 - Publish only completed public blocks with `WPCOM_Liveblog_Entry::insert()`; update originals with `WPCOM_Liveblog_Entry::update()`.
-- Per-block 5s debounce; new POSTOK publishes on the next successful worker pass; unclosed NOPUB tails never leak.
+- Per-block 5s debounce; POSTOK publishes, NOPOST skips and discards, and unclosed legacy NOPUB tails never leak.
 - Manual WordPress edit detection and safe block-level conflicts, sticky pending operations on uncertain writes, single-flight worker locks, error reporting and pause/resume.
 - Prevent automatic historical import, delete/unpublish and structural remapping.
 - Native WordPress updater recognizes published stable GitHub Releases with a correctly packaged ZIP; optional auto-updates are controlled by the WordPress administrator.
@@ -104,18 +132,19 @@ For faster unattended delivery, install the optional signed Etherpad webhook sen
 ## Important MVP limits
 
 - **Plain text only**, safely escaped with paragraph/line-break formatting. Etherpad rich-text styles and embedded images are intentionally not copied yet.
-- The parser accepts full-line marker commands only. Editing, splitting, deleting or moving an existing published marker can stop the affected connection for safety.
+- The parser accepts full-line POSTOK/NOPOST decisions only (Latin/Greek/mixed keyboard layout). Editing, splitting, deleting or moving an existing published marker can stop the affected connection for safety.
 - WordPress editors must confirm the pad's **write access is restricted**: a writer can trigger POSTOK publication. The plugin cannot independently enforce Etherpad pad ACL.
 - Workers stop on revision jumps larger than 500, missing revision history, ambiguity or uncertain Liveblog writes. Such cases require manual reconciliation. A pending entry is never automatically retried, preventing accidental duplicate publishing after a crash.
 - For WordPress-originated manual edits, the affected block stops synchronizing instead of silently overwriting an editor.
 - Admin meta box currently targets standard WordPress posts; supported custom post types are future work.
-- Only simple site-level per-pad mapping and service-user authorship are available in the first MVP.
+- Each Liveblog has its own selected author; the publishing user is stored separately.
 
 ## Development and testing
 
 ```bash
 find . -name '*.php' -print0 | xargs -0 -n1 php -l
 php tests/integration-smoke.php
+php tests/marker-keyboards-smoke.php
 php tests/updater-smoke.php
 php tests/admin-ajax-smoke.php
 php tests/public-export-smoke.php
