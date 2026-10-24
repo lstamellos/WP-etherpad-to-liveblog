@@ -152,4 +152,18 @@ check( true === WPELB_Sync_Worker::sync( 42 ), 'Conflicting edit handled' );
 $state = WPELB_Mapping_Store::get( 42 );
 check( $state['blocks'][1]['status'] === 'conflict', 'Manual WordPress edit is not overwritten' );
 check( $GLOBALS['comments'][101]->comment_content === 'manual WordPress change', 'Manual WordPress edit preserved' );
-echo "Parser, marker tracking, Liveblog insertion, per-block editing and NOPUB smoke tests passed.\n";
+// NOPOST consumes a complete block but never creates a Liveblog entry.
+append_pad( "Nonpublishable editorial note\\nnOpOsT\\n" );
+check( true === WPELB_Sync_Worker::sync( 42 ), 'NOPOST private block processed' );
+$state = WPELB_Mapping_Store::get( 42 );
+check( count( $state['blocks'] ) === 4, 'NOPOST added a tracked boundary' );
+check( $state['blocks'][3]['status'] === 'skipped', 'NOPOST not marked skipped' );
+check( count( $GLOBALS['comments'] ) === 2, 'NOPOST published an entry unexpectedly' );
+// A subsequent POSTOK starts a fresh section, not the previous private one.
+append_pad( "Next public report\\npostok\\n" );
+check( true === WPELB_Sync_Worker::sync( 42 ), 'Lowercase POSTOK processed after NOPOST' );
+$state = WPELB_Mapping_Store::get( 42 );
+check( $state['blocks'][4]['status'] === 'published', 'Publish marker after NOPOST not honored' );
+check( count( $GLOBALS['comments'] ) === 3, 'Only next public report should be published' );
+check( strpos( $GLOBALS['comments'][$state['blocks'][4]['entry_id']]->comment_content, 'Nonpublishable' ) === false, 'NOPOST private content leaked' );
+echo "Parser, marker tracking, Liveblog author selection, NOPOST, per-block editing and NOPUB smoke tests passed.\\n";
