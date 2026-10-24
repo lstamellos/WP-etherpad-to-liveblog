@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0 (2026-10-24)
+
+- Full-line POSTOK and NOPOST are now case-insensitive and Greek/Latin/mixed keyboard tolerant, with six-code-unit marker compatibility.
+- NOPOST closes an unpublished section; NOPUB/ENDNOPUB remain supported for legacy pads.
+- Per-Liveblog selected WordPress author with authenticated AJAX search in the post editor and a separate authorized publisher. Future entries use the selected author; old entries stay unchanged.
+- New Unicode parser, safety, permission and author regression tests.
+
 ## 0.4.0 — 2026-10-24
 
 - Added signed HMAC-SHA256 Etherpad padUpdate webhook receiver at `POST /wp-json/wpelb/v1/notify`; shared secret lives only in server-side configuration.
