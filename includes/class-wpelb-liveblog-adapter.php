@@ -8,12 +8,22 @@ final class WPELB_Liveblog_Adapter {
             in_array( get_post_meta( $post_id, WPCOM_Liveblog::KEY, true ), array( 'enable', 1 ), true );
     }
 
-    public static function insert( $post_id, $html, $author_id ) {
-        $user = get_userdata( $author_id );
-        if ( ! $user || ! self::available( $post_id ) || ! user_can( $user, 'edit_post', $post_id ) || ! user_can( $user, 'publish_posts' ) ) {
-            return new WP_Error( 'wpelb_permission', 'Liveblog or publishing service user unavailable.' );
+    public static function insert( $post_id, $html, $author_id, $publisher_id = 0 ) {
+        // Editorial attribution and publishing permission are different roles.
+        // The Liveblog engine accepts authors with edit_posts even when they
+        // cannot publish/edit this particular WordPress post.
+        $publisher = get_userdata( $publisher_id ?: $author_id );
+        $author = get_userdata( $author_id );
+        if ( ! $publisher || ! $author || ! user_can( $author, 'edit_posts' ) ||
+            ! self::available( $post_id ) ||
+            ! user_can( $publisher, 'edit_post', $post_id ) ||
+            ! user_can( $publisher, 'publish_posts' ) ) {
+            return new WP_Error( 'wpelb_permission', 'Selected author or authorized publishing user unavailable.' );
         }
-        $entry = WPCOM_Liveblog_Entry::insert( array( 'post_id' => $post_id, 'content' => $html, 'user' => $user, 'author_id' => $author_id ) );
+        $entry = WPCOM_Liveblog_Entry::insert( array(
+            'post_id' => $post_id, 'content' => $html,
+            'user' => $publisher, 'author_id' => $author_id,
+        ) );
         return is_wp_error( $entry ) ? $entry : (int) $entry->get_id();
     }
 
