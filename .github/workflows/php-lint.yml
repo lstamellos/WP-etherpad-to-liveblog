@@ -20,7 +20,8 @@ jobs:
         run: php tests/updater-smoke.php
       - name: Etherpad / Liveblog integration smoke tests
         run: php tests/integration-smoke.php
-      php tests/marker-keyboards-smoke.php
+      - name: Greek/Latin control markers and NOPOST tests
+        run: php tests/marker-keyboards-smoke.php
       - name: WordPress admin connection regression tests
         run: php tests/admin-ajax-smoke.php
       - name: Public Etherpad export smoke tests
