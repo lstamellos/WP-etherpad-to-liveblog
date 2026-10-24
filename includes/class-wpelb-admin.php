@@ -131,6 +131,7 @@ final class WPELB_Admin {
         }
         global $wpdb;
         $users = get_users( array(
+            'who' => 'authors',
             'search' => '*' . $wpdb->esc_like( $query ) . '*',
             'search_columns' => array( 'user_login', 'user_nicename', 'display_name' ),
             'number' => 100,
