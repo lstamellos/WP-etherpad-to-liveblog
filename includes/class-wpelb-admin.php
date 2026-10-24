@@ -8,6 +8,7 @@ final class WPELB_Admin {
         add_action( 'add_meta_boxes', array( __CLASS__, 'add_box' ) );
         add_action( 'admin_post_wpelb_action', array( __CLASS__, 'handle' ) );
         add_action( 'wp_ajax_wpelb_action', array( __CLASS__, 'handle' ) );
+        add_action( 'wp_ajax_wpelb_author_search', array( __CLASS__, 'author_search' ) );
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
     }
 
@@ -84,6 +85,8 @@ final class WPELB_Admin {
                 echo '<p>Manual review required. Do not reconnect without reconciling outstanding entries.</p>';
             }
             self::form_open( $post->ID );
+            self::render_author_picker( $post->ID, (int) ( $state['author_id'] ?? get_current_user_id() ) );
+            echo '<button type="button" class="button" data-wpelb-operation="save_author">Save author</button><hr />';
             if ( 'active' === $state_status ) {
                 echo '<button type="button" class="button" data-wpelb-operation="pause">Pause sync</button> ';
             } else {
@@ -95,9 +98,57 @@ final class WPELB_Admin {
             echo '<p>Connect a public HTTPS Etherpad pad (any instance). No Etherpad API credentials required. Previous POSTOK lines are ignored on first link.</p>';
             self::form_open( $post->ID );
             echo '<label for="wpelb-pad-url">Etherpad URL</label><input id="wpelb-pad-url" class="widefat" type="url" name="pad_url" placeholder="https://pad.omniatv.com/p/example" required />';
+            self::render_author_picker( $post->ID, get_current_user_id() );
             echo '<p><label><input type="checkbox" name="pad_acl_ack" value="1" required /> I confirm that only trusted reporters can edit this pad.</label></p>';
             echo '<button type="button" class="button button-primary" data-wpelb-operation="connect">Connect pad</button></div>';
         }
+    }
+
+    /**
+     * Existing selected author is rendered server-side. AJAX search returns
+     * only WordPress users whom Liveblog accepts as entry authors (edit_posts).
+     */
+    private static function render_author_picker( $post_id, $selected_id ) {
+        $selected = get_userdata( $selected_id );
+        $label = $selected ? $selected->display_name . ' (' . $selected->user_login . ')' : 'Select an author';
+        echo '<p><label for="wpelb-author-search-' . esc_attr( (string) $post_id ) . '"><strong>Author for new pad updates</strong></label>';
+        echo '<input id="wpelb-author-search-' . esc_attr( (string) $post_id ) . '" class="widefat wpelb-author-search" type="search" placeholder="Search name or username" autocomplete="off" />';
+        echo '<select class="widefat wpelb-author-select" name="wpelb_author_id" required aria-label="Selected Liveblog author">';
+        echo '<option value="' . esc_attr( $selected ? (string) $selected_id : '' ) . '">' . esc_html( $label ) . '</option>';
+        echo '</select></p>';
+        echo '<p class="description">Applied only to newly published updates; existing entries keep their original author.</p>';
+    }
+
+    public static function author_search() {
+        $post_id = absint( $_POST['post_id'] ?? 0 );
+        if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) || ! current_user_can( 'publish_posts' ) ||
+            ! check_ajax_referer( 'wpelb_action_' . $post_id, 'nonce', false ) ) {
+            wp_send_json_error( array( 'message' => 'Permission denied.' ), 403 );
+        }
+        $query = sanitize_text_field( wp_unslash( $_POST['term'] ?? '' ) );
+        if ( strlen( $query ) < 2 || strlen( $query ) > 80 ) {
+            wp_send_json_success( array( 'users' => array() ) );
+        }
+        global $wpdb;
+        $users = get_users( array(
+            'search' => '*' . $wpdb->esc_like( $query ) . '*',
+            'search_columns' => array( 'user_login', 'user_nicename', 'display_name' ),
+            'number' => 100,
+            'orderby' => 'display_name',
+            'order' => 'ASC',
+        ) );
+        $results = array();
+        foreach ( $users as $user ) {
+            if ( ! user_can( $user, 'edit_posts' ) ) { continue; }
+            $results[] = array( 'id' => (int) $user->ID,
+                'label' => $user->display_name . ' (' . $user->user_login . ')' );
+            if ( count( $results ) >= 20 ) { break; }
+        }
+        wp_send_json_success( array( 'users' => $results ) );
+    }
+
+    private static function valid_author( $id ) {
+        return $id > 0 && ( $user = get_userdata( $id ) ) && user_can( $user, 'edit_posts' );
     }
 
     private static function form_open( $post_id ) {
@@ -134,7 +185,11 @@ final class WPELB_Admin {
         $state = WPELB_Mapping_Store::get( $post_id );
         $result = true;
         if ( 'connect' === $operation ) {
-            if ( $state || empty( $_POST['pad_acl_ack'] ) || ! WPELB_Liveblog_Adapter::available( $post_id ) ) {
+            $author_id = isset( $_POST['wpelb_author_id'] )
+                ? absint( wp_unslash( $_POST['wpelb_author_id'] ) ) : get_current_user_id();
+            if ( ! self::valid_author( $author_id ) ) {
+                $result = new WP_Error( 'wpelb_author', 'Choose an existing WordPress user who can write posts.' );
+            } elseif ( $state || empty( $_POST['pad_acl_ack'] ) || ! WPELB_Liveblog_Adapter::available( $post_id ) ) {
                 $result = new WP_Error( 'wpelb_connect', 'Existing connection, missing editor acknowledgement or inactive Liveblog.' );
             } else {
                 $target = WPELB_Public_Export_Client::connection_from_url( esc_url_raw( wp_unslash( $_POST['pad_url'] ?? '' ) ) );
@@ -173,7 +228,8 @@ final class WPELB_Admin {
                                         'revision' => $rev,
                                         'anchors' => $anchors,
                                         'blocks' => $blocks,
-                                        'author_id' => get_current_user_id(),
+                                        'author_id' => $author_id,
+                                        'publisher_id' => get_current_user_id(),
                                         'last_error' => '',
                                     );
                                     if ( false === WPELB_Mapping_Store::save( $post_id, $state_data ) ) {
@@ -187,6 +243,21 @@ final class WPELB_Admin {
                         $result = new WP_Error( 'wpelb_origin', $e->getMessage() );
                     }
                 }
+            }
+        } elseif ( 'save_author' === $operation ) {
+            $author_id = absint( wp_unslash( $_POST['wpelb_author_id'] ?? 0 ) );
+            if ( ! $state ) {
+                $result = new WP_Error( 'wpelb_state', 'No pad is connected.' );
+            } elseif ( ! self::valid_author( $author_id ) ) {
+                $result = new WP_Error( 'wpelb_author', 'Choose an existing WordPress user who can write posts.' );
+            } else {
+                // Preserve publisher identity of historical links when their
+                // author changes; attribution cannot confer publish rights.
+                if ( empty( $state['publisher_id'] ) ) {
+                    $state['publisher_id'] = (int) ( $state['author_id'] ?? get_current_user_id() );
+                }
+                $state['author_id'] = $author_id;
+                WPELB_Mapping_Store::save( $post_id, $state );
             }
         } elseif ( 'pause' === $operation || 'resume' === $operation ) {
             if ( ! $state ) {
