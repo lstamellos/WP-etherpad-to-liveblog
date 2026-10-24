@@ -49,6 +49,7 @@ class WPCOM_Liveblog_Entry {
     public function __construct( $id ) { $this->id = $id; }
     public function get_id() { return $this->id; }
     public static function insert( $args ) {
+        $GLOBALS['last_insert_args'] = $args;
         $id = ++$GLOBALS['sequence'];
         $GLOBALS['comments'][$id] = (object) array( 'comment_content' => $args['content'], 'comment_post_ID' => $args['post_id'], 'comment_type' => 'liveblog' );
         return new self( $id );
@@ -88,6 +89,8 @@ check( count( $state['blocks'] ) === 2, 'Two logical blocks' );
 check( $state['blocks'][0]['status'] === 'skipped', 'Baseline not republished' );
 check( $state['blocks'][1]['status'] === 'published', 'New POSTOK published' );
 check( $state['blocks'][1]['entry_id'] === 101, 'Original liveblog ID saved' );
+check( $GLOBALS['last_insert_args']['author_id'] === 1, 'Legacy mapping author must be preserved.' );
+check( $GLOBALS['last_insert_args']['user']->ID === 1, 'Legacy publishing user fallback must work.' );
 check( count( $GLOBALS['comments'] ) === 1, 'No duplicate entries' );
 // Later edit the second published block, inserting at its beginning. Build a
 // realistic changeset with an insertion after the first marker.
@@ -116,6 +119,12 @@ check( $private['blocks'][0] === "safe\npublic", 'Private section removed, POSTO
 check( count( WPELB_Block_Parser::parse("NOPUB\nsecret\nPOSTOK\n")['blocks'] ) === 0, 'Unclosed NOPUB never publishes private tail' );
 $bad = WPELB_Block_Matcher::apply( array( 4 ), 'Z:a<1=4-1=5$' );
 check( is_wp_error( $bad ), 'Modifying a tracked POSTOK is rejected' );
+// Changing the selected author affects only subsequent entries, and the
+// connector remains the authorized publishing user.
+$state = WPELB_Mapping_Store::get( 42 );
+$state['author_id'] = 22;
+$state['publisher_id'] = 1;
+WPELB_Mapping_Store::save( 42, $state );
 // A reporter can close the ongoing third draft while older blocks remain linked.
 append_pad( "\nPOSTOK\n" ); // revision 4 follows the edited old block + draft.
 check( true === WPELB_Sync_Worker::sync( 42 ), 'Third report published after POSTOK' );
@@ -123,6 +132,8 @@ $state = WPELB_Mapping_Store::get( 42 );
 check( count( $state['blocks'] ) === 3, 'Three delimiters' );
 check( $state['blocks'][2]['status'] === 'published', 'Latest report published' );
 check( $state['blocks'][2]['entry_id'] === 103, 'Third report creates new original ID' );
+check( $GLOBALS['last_insert_args']['author_id'] === 22, 'Changed author must apply to new entries.' );
+check( $GLOBALS['last_insert_args']['user']->ID === 1, 'Changed author must not elevate publisher permissions.' );
 check( count( $GLOBALS['comments'] ) === 2, 'Two public entries after baseline' );
 // Manual changes in WordPress must not be silently replaced by the Etherpad worker.
 $GLOBALS['comments'][101]->comment_content = 'manual WordPress change';
