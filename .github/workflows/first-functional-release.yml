@@ -65,5 +65,5 @@ jobs:
           else
             gh release create "$TAG" wp-etherpad-to-liveblog.zip \
               --target "$GITHUB_SHA" --title "$TAG — Etherpad to Liveblog MVP patch" \
-              --notes "v0.4.0: Signed Etherpad padUpdate webhook receiver, keeping safe public-export synchronizer, Liveblog poll and WP-Cron triggers. Independent system cron recommended for reliable one-minute fallback. The optional ep_liveblog_webhook Etherpad package is distributed separately."
+              --notes "$TAG: Greek/Latin/mixed-keyboard POSTOK and NOPOST controls, authenticated per-Liveblog WordPress author selection, and separate authorized publishing identity. Preserves v0.4.0 webhook, independent cron recovery, existing marker/entry mappings and manual Liveblog edit precedence."
           fi
