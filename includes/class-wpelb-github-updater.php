@@ -88,7 +88,7 @@ final class WPELB_GitHub_Updater {
             'name'          => 'WP Etherpad to Liveblog',
             'slug'          => self::SLUG,
             'version'       => $release['version'],
-            'author'        => 'OmniaTV contributors',
+            'author'        => 'WP Etherpad to Liveblog contributors',
             'homepage'      => self::UPDATE_URI,
             'requires'      => '6.4',
             'requires_php'  => '8.0',
