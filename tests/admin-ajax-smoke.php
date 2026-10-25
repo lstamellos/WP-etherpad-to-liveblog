@@ -71,7 +71,7 @@ class WPELB_Liveblog_Adapter {
 class WPELB_Public_Export_Client {
     public function __construct( $origin ) {}
     public static function connection_from_url( $url ) {
-        return array( 'origin' => 'https://pad.omniatv.com', 'pad_id' => 'example-pad' );
+        return array( 'origin' => 'https://pad.example.org', 'pad_id' => 'example-pad' );
     }
     public function head( $pad ) { return 3; }
     public function text( $pad, $rev ) { return "Prior report\nPOSTOK\n"; }
@@ -103,7 +103,7 @@ $_POST = array(
     'post_id' => '42',
     'nonce' => 'nonce-for-wpelb_action_42',
     'wpelb_operation' => 'connect',
-    'pad_url' => 'https://pad.omniatv.com/p/example-pad',
+    'pad_url' => 'https://pad.example.org/p/example-pad',
     'pad_acl_ack' => '1',
     'wpelb_author_id' => '12',
 );
@@ -115,8 +115,8 @@ try {
     check( $e->payload['success'] === true, 'Connection response not successful.' );
     check( strpos( $e->payload['data']['html'], 'Status: <strong>active</strong>' ) !== false, 'AJAX response did not show saved active state.' );
 }
-check( WPELB_Mapping_Store::$reserved === 'https://pad.omniatv.com/p/example-pad', 'Pad reservation was not stored with origin.' );
-check( WPELB_Mapping_Store::$state['origin'] === 'https://pad.omniatv.com', 'Origin not persisted.' );
+check( WPELB_Mapping_Store::$reserved === 'https://pad.example.org/p/example-pad', 'Pad reservation was not stored with origin.' );
+check( WPELB_Mapping_Store::$state['origin'] === 'https://pad.example.org', 'Origin not persisted.' );
 check( WPELB_Mapping_Store::$state['status'] === 'active', 'Pad mapping was not stored.' );
 check( WPELB_Mapping_Store::$state['revision'] === 3, 'Initial revision baseline missing.' );
 check( WPELB_Mapping_Store::$state['blocks'][0]['status'] === 'skipped', 'Existing POSTOK should not be republished.' );
