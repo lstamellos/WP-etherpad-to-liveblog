@@ -2,6 +2,7 @@
 /** In-process WordPress / Etherpad / Liveblog contract smoke tests. */
 define( 'ABSPATH', '/tmp/wordpress/' );
 define( 'WPELB_ETHERPAD_API_KEY', 'test-only-key' );
+define( 'WPELB_ETHERPAD_BASE_URL', 'https://pad.example.org' );
 define( 'WPELB_VERSION', '0.2.0' );
 $GLOBALS['meta'] = array( 42 => array( 'liveblog' => 'enable' ) );
 $GLOBALS['options'] = array();
