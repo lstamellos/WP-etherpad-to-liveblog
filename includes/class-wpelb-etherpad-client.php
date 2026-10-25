@@ -9,7 +9,12 @@ final class WPELB_Etherpad_Client {
     private static $cached_until = 0;
 
     public function __construct() {
-        $base = defined( 'WPELB_ETHERPAD_BASE_URL' ) ? WPELB_ETHERPAD_BASE_URL : 'https://pad.omniatv.com';
+        // Legacy API-backed mappings have no saved origin; require explicit
+        // site configuration rather than silently contacting another tenant.
+        if ( ! defined( 'WPELB_ETHERPAD_BASE_URL' ) || ! is_string( WPELB_ETHERPAD_BASE_URL ) || '' === trim( WPELB_ETHERPAD_BASE_URL ) ) {
+            throw new InvalidArgumentException( 'Legacy Etherpad API connections require WPELB_ETHERPAD_BASE_URL in wp-config.php.' );
+        }
+        $base = WPELB_ETHERPAD_BASE_URL;
         $parts = wp_parse_url( $base );
         if ( ! is_array( $parts ) || 'https' !== ( $parts['scheme'] ?? '' ) || empty( $parts['host'] ) || isset( $parts['user'] ) || isset( $parts['pass'] ) || isset( $parts['query'] ) || isset( $parts['fragment'] ) || isset( $parts['path'] ) || isset( $parts['port'] ) ) {
             throw new InvalidArgumentException( 'Etherpad base URL must be an HTTPS origin without paths or ports.' );
@@ -22,7 +27,10 @@ final class WPELB_Etherpad_Client {
         if ( ! is_string( $url ) || strlen( $url ) > 600 ) {
             return new WP_Error( 'wpelb_url', 'Invalid pad URL' );
         }
-        $expected = defined( 'WPELB_ETHERPAD_BASE_URL' ) ? WPELB_ETHERPAD_BASE_URL : 'https://pad.omniatv.com';
+        if ( ! defined( 'WPELB_ETHERPAD_BASE_URL' ) || ! is_string( WPELB_ETHERPAD_BASE_URL ) || '' === trim( WPELB_ETHERPAD_BASE_URL ) ) {
+            return new WP_Error( 'wpelb_origin', 'Configure WPELB_ETHERPAD_BASE_URL for legacy Etherpad API connections.' );
+        }
+        $expected = WPELB_ETHERPAD_BASE_URL;
         $u = wp_parse_url( $url );
         $origin = wp_parse_url( $expected );
         if ( ! is_array( $u ) || ! is_array( $origin ) || 'https' !== ( $u['scheme'] ?? '' ) || strtolower( $u['host'] ?? '' ) !== strtolower( $origin['host'] ?? '' ) || isset( $u['port'] ) || isset( $u['user'] ) || isset( $u['pass'] ) || isset( $u['query'] ) || ! preg_match( '~^/p/([a-zA-Z0-9_.\-$]{1,200})/?$~D', $u['path'] ?? '', $matches ) ) {
