@@ -22,7 +22,7 @@ jobs:
         run: php tests/integration-smoke.php
       - name: Greek/Latin control markers and NOPOST tests
         run: php tests/marker-keyboards-smoke.php
-      - name: WordPress admin connection regression tests
+      - name: Reject missing legacy Etherpad origin\n        run: php tests/legacy-origin-smoke.php\n      - name: WordPress admin connection regression tests
         run: php tests/admin-ajax-smoke.php
       - name: Public Etherpad export smoke tests
         run: php tests/public-export-smoke.php
