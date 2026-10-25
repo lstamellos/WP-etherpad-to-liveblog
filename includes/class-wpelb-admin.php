@@ -97,7 +97,7 @@ final class WPELB_Admin {
         } else {
             echo '<p>Connect a public HTTPS Etherpad pad (any instance). No Etherpad API credentials required. Previous POSTOK lines are ignored on first link.</p>';
             self::form_open( $post->ID );
-            echo '<label for="wpelb-pad-url">Etherpad URL</label><input id="wpelb-pad-url" class="widefat" type="url" name="pad_url" placeholder="https://pad.omniatv.com/p/example" required />';
+            echo '<label for="wpelb-pad-url">Etherpad URL</label><input id="wpelb-pad-url" class="widefat" type="url" name="pad_url" placeholder="https://pad.example.org/p/reporting" required />';
             self::render_author_picker( $post->ID, get_current_user_id() );
             echo '<p><label><input type="checkbox" name="pad_acl_ack" value="1" required /> I confirm that only trusted reporters can edit this pad.</label></p>';
             echo '<button type="button" class="button button-primary" data-wpelb-operation="connect">Connect pad</button></div>';
