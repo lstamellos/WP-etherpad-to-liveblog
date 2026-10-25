@@ -26,7 +26,8 @@ jobs:
           php tests/updater-smoke.php
           php tests/integration-smoke.php
           php tests/marker-keyboards-smoke.php
-          php tests/legacy-origin-smoke.php\n          php tests/admin-ajax-smoke.php
+          php tests/legacy-origin-smoke.php
+          php tests/admin-ajax-smoke.php
           php tests/public-export-smoke.php
           php tests/liveblog-poll-trigger-smoke.php
           php tests/webhook-receiver-smoke.php
