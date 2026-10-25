@@ -1,151 +1,272 @@
 # WP Etherpad to Liveblog
 
-WordPress plugin that publishes live field reporting written collaboratively in **Etherpad** as entries in **Automattic Liveblog**.
+Publish collaboratively written [Etherpad](https://etherpad.org/) reports as updates
+in [Automattic Liveblog](https://github.com/Automattic/liveblog) on WordPress.
 
-**Version 0.5.0 — multilingual publication markers and per-Liveblog author selection.** OmniaTV has verified signed webhooks, new entry publishing, edits to published entries, WordPress-edit precedence and independent cron recovery on a test Liveblog.
+**Self-hosted WordPress integration, usable with any publicly readable HTTPS
+Etherpad instance.** The WordPress site and Etherpad may be on different
+domains, servers or providers. No organization-specific hostname or fixed
+WordPress post ID is required.
 
-## Editor workflow
+## Requirements
 
-1. Enable Automattic Liveblog on a WordPress post.
-2. Choose a publicly readable pad from any HTTPS Etherpad instance. No API keys or OAuth credentials are needed.
-3. In **Etherpad → Liveblog**, paste the full URL, e.g. `https://pad.omniatv.com/p/<padID>` or `https://another-pad.example.org/p/<padID>`. **Search for and select the WordPress author** to attribute new updates to, then click **Connect pad**. Controls use WordPress AJAX. Eligible authors are WordPress users with `edit_posts`; the authenticated connecting editor remains the authorized publisher.
-4. On existing connections, **Save author** changes the attribution for *future* updates only. Edits to old entries keep their original author. Native Liveblog polling still triggers sync; on supported instances, the optional Etherpad padUpdate webhook triggers sync immediately. Configure independent system cron once per minute for guaranteed fallback, including pads hosted elsewhere. The editor shows pad, status, revision and errors.
+- WordPress **6.4+**, PHP **8.0+**, and the **Automattic Liveblog** plugin,
+  with Liveblog enabled on a normal WordPress **post**.
+- A WordPress editor who can edit the post and publish posts. The plugin's
+  **Etherpad → Liveblog** box appears in the post editor.
+- An Etherpad pad with publicly accessible **read-only export endpoints**:
+  `/p/<padID>/export/txt` and `/p/<padID>/export/etherpad`.
+  The WordPress server must be able to reach both endpoints using HTTPS.
+- **Restricted pad editing**: only trusted correspondents should be able to
+  write to the pad. Anyone who can edit it can trigger a Liveblog publication.
 
-**Initial connection baselines existing POSTOK lines without publishing them retrospectively.** One Etherpad pad can be linked to only one Liveblog at a time and vice versa.
+New pad connections do **not** need an Etherpad API key, OAuth configuration,
+WordPress-to-Etherpad credentials, or an Etherpad-side plugin. Publication uses
+the WordPress site's existing Liveblog plugin.
 
-## Reporter workflow
+## Install and connect a pad
 
-Type a control word **alone on its own line** (optional surrounding spaces).
-Both commands are case-insensitive and accept Latin, Greek or mixed Greek/Latin
-keyboard layouts, including `POSTOK`, `postok`, `ΠΟΣΤΟΚ`, `ποστοκ`,
-`NOPOST`, `nopost`, `ΝΟΠΟΣΤ`, `νοποστ`.
+1. Install and activate **Automattic Liveblog** and **WP Etherpad to Liveblog**
+   on your WordPress site.
+2. Enable Liveblog on the WordPress post that will receive updates.
+3. Open the post editor and find **Etherpad → Liveblog** in the sidebar.
+4. Enter the **full HTTPS pad URL**, for example
+   `https://pad.example.org/p/court-reporting`.
+5. Search for and select the WordPress **author** who should be credited for
+   new updates. Eligible authors have the `edit_posts` capability.
+6. Confirm that pad editing is restricted to trusted contributors; click
+   **Connect pad**.
+
+A newly connected pad's **already completed sections are baselined, not
+republished**. Only new completed sections are eligible for publication.
+Each connection is one pad ↔ one Liveblog; a pad cannot be linked twice.
+
+An existing connection provides **Pause sync**, **Resume sync** and
+**Disconnect** controls. Disconnection does not delete published entries.
+**Save author** changes attribution for *future new entries only*. The author
+of existing entries remains unchanged when the pad content is edited later.
+
+The WordPress editor who establishes the connection remains the authorized
+publishing user; the selected author is editorial attribution, not a grant
+of publishing permission.
+
+## Write updates in Etherpad
+
+Use either control word **alone on its own line** (surrounding spaces are fine):
+
+| Control | Effect | Accepted examples |
+|---|---|---|
+| `POSTOK` | Publish the preceding section as one update | `POSTOK`, `postok`, `ΠΟΣΤΟΚ`, `ποστοκ` |
+| `NOPOST` | Close and discard the preceding section without publishing | `NOPOST`, `nopost`, `ΝΟΠΟΣΤ`, `νοποστ` |
+
+The parser also accepts mixed Greek/Latin keyboard input and mixed case,
+such as `ΠoΣtOκ`. Control words *inside sentences* do not trigger anything.
 
 ```text
-Το δικαστήριο διέκοψε τη συνεδρίαση.
-ποστοκ
+The hearing resumed at 10:30.
+postok
 
-Εσωτερική σημείωση που δεν πρέπει να δημοσιευτεί.
+Internal note: verify the speaker's name.
 νοποστ
 
-Η συνεδρίαση επαναλήφθηκε.
+The next witness entered the room.
 POSTOK
+
+Draft in progress...
 ```
 
-- **POSTOK** closes the preceding section and publishes it as one Liveblog update.
-- **NOPOST** closes and **discards** the preceding section; this content must not
-  be published and is not stored as a publishable WordPress block.
-- An unfinished section without a command remains a draft.
-- Historic `NOPUB` / `ENDNOPUB` spans are still parsed so old pads do not break.
-  New reporting should use `NOPOST` to discard an entire section instead.
-- Do not rewrite existing markers in a linked pad. Published anchors are
-  revision-tracked; modifying historical markers can pause synchronization for
-  safety (including changing `POSTOK` to `ποστοκ`).
+This produces **two** Liveblog updates. The internal note is not published,
+and the incomplete draft is withheld until a control marker closes it.
+Legacy `NOPUB` / `ENDNOPUB` markers are also recognized for existing pads,
+but have different semantics: they exclude a *region inside a section*, whereas
+`NOPOST` discards the entire preceding section.
 
-Edits in an *already published* section update **the same original Liveblog
-entry** after **5 seconds without further changes in that section**, unless an
-editor has manually changed the Liveblog entry. Manual WordPress edits always
-take precedence and cause a per-block conflict rather than an overwrite.
+**Never delete, move or rewrite an existing completed marker.** Marker anchors
+are tracked through Etherpad revisions; even changing an old `POSTOK` to
+`ποστοκ` may force the connection to pause to protect update identity.
 
-### Per-Liveblog authors
+### Correct existing Liveblog updates
 
-The author selector is in the **Etherpad → Liveblog** meta box on each Liveblog.
-Start typing a WordPress display name or username, choose a result and use
-**Connect pad** for a new connection or **Save author** for an existing one.
-Autocomplete is restricted to authorized post editors and only returns users
-with `edit_posts`, consistent with Liveblog's own author assignment checks.
+Edit the text of an already published section **inside Etherpad**, without
+touching its marker. After at least five seconds of inactivity for that
+section, the plugin updates its original Liveblog entry rather than posting a
+duplicate. Editing a different section does not reset this debounce timer.
 
-Attribution is independent from publishing permission: the editor who connects
-the pad remains the service publisher, while Liveblog entries are attributed to
-the selected author. Existing entries are **not** retroactively reassigned when
-the selected author changes. Subsequent edits of existing entries retain their
-original author. Legacy links default to the previously stored author and
-publisher unless explicitly changed.
+If someone edited that entry **directly in WordPress**, the manual edit takes
+precedence: the bridge reports a conflict for that section and does not
+overwrite it. Other sections can continue to synchronize. A conflict requires
+editor review; it is not automatically discarded.
 
-## Public Etherpad connections (default)
+## Keep updates flowing: cron and optional webhooks
 
-New pad connections use Etherpad's standard public export endpoints, without an Etherpad account or API authentication:
+There are three mechanisms, sharing the same guarded synchronizer:
 
-- `/p/<padID>/export/txt`: lightweight text snapshot, checked during a triggered synchronization (at most once per 5 seconds per post from Liveblog polling).
-- `/p/<padID>/export/etherpad`: full native pad export, containing revision IDs and changesets. Fetched initially and only when the text changes to retain block identity safely.
+1. **Independent OS cron (recommended)** checks connected pads once a minute,
+   including when no one visits WordPress or Liveblog and when the Etherpad
+   server does not run a webhook plugin.
+2. **Signed Etherpad webhook (optional)** triggers a faster sync after changes
+   on an Etherpad installation you administer.
+3. **Built-in fallbacks** use native Liveblog reader polling and WordPress
+   WP-Cron. These depend on requests reaching WordPress/PHP, so they do not
+   guarantee unattended execution.
 
-Use a full HTTPS pad URL from any publicly resolvable Etherpad instance. Pad mappings are unique by **origin + pad ID**. WordPress checks the destination hostname, blocks private/internal hosts and unexpected ports, disables redirects and limits download size (TXT: 800 KB, archive: 8 MiB). No cookies or credentials are sent.
+### Configure independent OS cron
 
-Both export routes must be publicly readable to the WordPress server. If Cloudflare applies an automated challenge, narrowly allow the WordPress egress IP to access these two export paths; the prior `/api` exception alone does not cover them. No changes to privileged Etherpad API access are needed.
-
-**Compatibility:** pre-existing links without a stored origin continue using the old authenticated API client. For those connections only, optional `WPELB_ETHERPAD_BASE_URL` and `WPELB_ETHERPAD_API_KEY` or OAuth/bearer credentials may still be needed.
-
-**Limits:** the public archive contains full revision history and can grow beyond 8 MiB. On inaccessible/inconsistent or oversized exports, sync stops safely rather than guessing marker identity. Rich text and Etherpad lists are not yet transferred reliably; this MVP is for ordinary plain-text reporting.
-
-### Signed Etherpad webhooks (optional, faster)
-
-The WordPress bridge accepts signed `padUpdate` notifications at:
-
-```text
-POST https://omniatv.com/wp-json/wpelb/v1/notify
-```
-
-Set a random **server-side** secret in `wp-config.php` (at least 32 characters, before `wp-settings.php` is loaded):
-
-```php
-define( 'WPELB_WEBHOOK_SECRET', 'REPLACE_WITH_OPENSSL_RAND_HEX_32_VALUE' );
-```
-
-Use the same secret for the optional Etherpad plugin **`ep_liveblog_webhook`** (a separately versioned npm package, not part of this WordPress plugin). A notification carries only the public Etherpad origin, pad ID and revision, plus a unique event ID, timestamp and `HMAC-SHA256` signature. WordPress verifies the signature and timestamp, then resolves **only an existing active origin + pad mapping**. No public request is allowed to choose a WordPress post to modify. The existing single-flight synchronizer applies the same POSTOK/revision/conflict rules.
-
-The Etherpad plugin sends one notification shortly after changes stop and another after the existing **5-second published-edit debounce**. This ensures edited entries can settle without Liveblog readers. All webhook delivery failures are recoverable via the system cron described below. If Cloudflare blocks signed POSTs, add a narrow source-IP/path/method exception for `/wp-json/wpelb/v1/notify`, not a global WAF bypass.
-
-### Independent system cron (recommended reliable fallback)
-
-WP-Cron is traffic-driven and Liveblog polling requires readers. To guarantee synchronization even when no one visits the site, use the **host operating system's cron**, e.g. via Virtualmin/Webmin. Run this command as the WordPress OS user **once per minute**:
-
-```crontab
-* * * * * flock -n /HOME/ACCOUNT/.wpelb-cron.lock /ABSOLUTE/PATH/TO/wp --path=/ABSOLUTE/PATH/TO/WORDPRESS etherpad-liveblog run --once
-```
-
-Replace the placeholders with actual server paths and verify `command -v wp`. The lock file should belong to the correct user and reside in a directory that user controls. This is a short-lived **WP-CLI invocation, not a systemd service**. It recovers from missing/failed Etherpad webhook deliveries, handles third-party pads without installed plugins, and is not dependent on the WordPress site being visited.
-
-### Automatic synchronization without a separate worker service
-
-As a supplementary trigger, native Automattic Liveblog reader polling requests to `/wp-json/liveblog/v1/{post_id}/entries/{start}/{end}/` trigger a **throttled, per-post** synchronization when they reach WordPress. The original Liveblog React code and REST responses are not modified. On PHP-FPM, the polling response is finished before Etherpad export fetching begins; on other SAPIs, the work is deferred through WP-Cron so a reader does not wait on remote exports.
-
-A second trigger is provided by WordPress **WP-Cron** at one-minute intervals, checking all active linked pads. Both paths use the same revision-aware `WPELB_Sync_Worker::sync()` method and its single-flight publication lock. These triggers do **not** require systemd, a daemon or a persistent WP-CLI process. The independent one-minute system cron above supplies the always-on fallback.
-
-**Timing is traffic-dependent:** when no readers have the Liveblog open, the periodic fallback executes on the next uncached PHP request that starts due WordPress cron. If `DISABLE_WP_CRON` is true, WordPress cron is blocked or requests are served entirely from CDN caches, a live polling trigger may be the only automatic mechanism. This design cannot guarantee 2-second unattended delivery in complete inactivity.
-
-For diagnostics or a one-time immediate synchronization, run:
+On the **WordPress server**, identify its OS account, WP-CLI path and site path.
+Create a private directory owned by that user, e.g.
+`/home/site-user/.wpelb-cron/`, and test a one-off invocation:
 
 ```bash
-wp etherpad-liveblog run --once
+wp --path=/path/to/wordpress etherpad-liveblog run --once
 ```
 
-For faster unattended delivery, install the optional signed Etherpad webhook sender on instances you control. Only the system cron gives a dependable periodic recovery check for other instances.
+Then add **one** crontab entry under the same account (substitute *all*
+paths with your own; do not copy these placeholders literally):
 
-## Implemented behavior
+```cron
+* * * * * /usr/bin/flock -n /home/site-user/.wpelb-cron/sync.lock /usr/local/bin/wp --path=/path/to/wordpress etherpad-liveblog run --once >/dev/null 2>>/home/site-user/.wpelb-cron/sync-errors.log
+```
 
-- Anonymous public TXT and native revision exports; existing authenticated links retain `getRevisionsCount` / `getText` / `getRevisionChangeset`. POSTOK anchors track changesets (including Unicode UTF-16 offsets).
-- Publish only completed public blocks with `WPCOM_Liveblog_Entry::insert()`; update originals with `WPCOM_Liveblog_Entry::update()`.
-- Per-block 5s debounce; POSTOK publishes, NOPOST skips and discards, and unclosed legacy NOPUB tails never leak.
-- Manual WordPress edit detection and safe block-level conflicts, sticky pending operations on uncertain writes, single-flight worker locks, error reporting and pause/resume.
-- Prevent automatic historical import, delete/unpublish and structural remapping.
-- Native WordPress updater recognizes published stable GitHub Releases with a correctly packaged ZIP; optional auto-updates are controlled by the WordPress administrator.
+The `flock` lock prevents overlapping cron runs. The plugin also guards
+each individual WordPress Liveblog against concurrent publication.
+This is a short-lived CLI process, **not** a new systemd service.
+To inspect the configured job use `crontab -l`. The error log is normally
+empty. Verify the actual `flock` and WP-CLI locations on your OS.
 
-## Important MVP limits
+### Optional signed Etherpad webhook
 
-- **Plain text only**, safely escaped with paragraph/line-break formatting. Etherpad rich-text styles and embedded images are intentionally not copied yet.
-- The parser accepts full-line POSTOK/NOPOST decisions only (Latin/Greek/mixed keyboard layout). Editing, splitting, deleting or moving an existing published marker can stop the affected connection for safety.
-- WordPress editors must confirm the pad's **write access is restricted**: a writer can trigger POSTOK publication. The plugin cannot independently enforce Etherpad pad ACL.
-- Workers stop on revision jumps larger than 500, missing revision history, ambiguity or uncertain Liveblog writes. Such cases require manual reconciliation. A pending entry is never automatically retried, preventing accidental duplicate publishing after a crash.
-- For WordPress-originated manual edits, the affected block stops synchronizing instead of silently overwriting an editor.
-- Admin meta box currently targets standard WordPress posts; supported custom post types are future work.
-- Each Liveblog has its own selected author; the publishing user is stored separately.
+If you administer the Etherpad server, you may install the separate
+[`ep_liveblog_webhook`](https://github.com/lstamellos/ep_liveblog_webhook)
+plugin there. **It is not required** for third-party Etherpad servers:
+the independent cron performs periodic checks without it.
 
-## Development and testing
+On the WordPress server, generate a random shared secret:
+
+```bash
+openssl rand -hex 32
+```
+
+In `wp-config.php`, **before WordPress is loaded**, configure:
+
+```php
+define( 'WPELB_WEBHOOK_SECRET', 'REPLACE_WITH_YOUR_RANDOM_SECRET' );
+```
+
+Give the same secret to Etherpad as a protected
+`EP_LIVEBLOG_WEBHOOK_SECRET` environment variable. On the Etherpad side,
+add this property to the **existing** Etherpad `settings.json` (do not
+replace that configuration file):
+
+```json
+{
+  "ep_liveblog_webhook": {
+    "enabled": true,
+    "origin": "https://pad.example.org",
+    "endpoint": "https://news.example.com/wp-json/wpelb/v1/notify",
+    "padIds": ["court-reporting"]
+  }
+}
+```
+
+- Replace the `origin` with your Etherpad's public HTTPS origin.
+  It must match the pad connection saved in WordPress.
+- Replace `endpoint` with **your WordPress site's** HTTPS origin followed
+  by `/wp-json/wpelb/v1/notify`.
+- Restrict `padIds` to the connected pad IDs, or configure the supported
+  `padPrefix` when appropriate.
+- Restart Etherpad using its existing service manager. The separate webhook
+  repository contains its installation commands and supported settings.
+
+Webhooks send **revision metadata, not pad text**, and authenticate with
+HMAC-SHA256. HTTP **202 only means the notification was accepted**, not that
+the corresponding entry is already published. Keep independent cron enabled,
+as webhook notifications may be missed during errors or restarts.
+
+If a reverse proxy or WAF challenges the signed notification, create a
+*narrow* exception for your Etherpad server egress IP, WordPress hostname,
+HTTP `POST`, and precisely the webhook REST route. Avoid disabling your
+site's WAF globally.
+
+## Security and operational limits
+
+- **Publicly readable is not publicly writable.** The Etherpad export endpoints
+  must be accessible to WordPress, but pad *editing* must be restricted.
+  `NOPOST` prevents **Liveblog publication**; it does **not** make the source
+  text secret or remove it from Etherpad's public exports and revision history.
+  Do not place confidential information in a publicly readable pad.
+- **Network controls:** only public HTTPS Etherpad URLs are accepted for new
+  connections. The client validates hosts, rejects internal/private targets,
+  nonstandard ports and redirects, and limits downloaded data (TXT: 800 KB,
+  native archive: 8 MiB). If an external firewall blocks downloads, allow the
+  WordPress server to reach *both* public export endpoints.
+- **Plain text only:** the bridge escapes text and preserves paragraphs and
+  line breaks, not Etherpad rich text, collaborator colors, lists or images.
+- **Safe failure:** missing history, a revision jump over 500, ambiguous marker
+  edits, or an uncertain write can pause a connection. Pending writes require
+  manual reconciliation to avoid accidental duplicates.
+- **Standard posts only:** the connection meta box currently targets WordPress
+  `post`, not arbitrary custom post types.
+- **Liveblog compatibility:** the code relies on the Automattic Liveblog
+  `WPCOM_Liveblog_Entry` API; verify compatibility with your installed version
+  before using it for important live coverage.
+
+### Legacy authenticated connections
+
+**Only old connections created with the original Etherpad API integration**,
+which lack a stored `origin`, use the authenticated API client instead of public
+exports. For these connections, explicitly configure the Etherpad server in
+`wp-config.php`:
+
+```php
+define( 'WPELB_ETHERPAD_BASE_URL', 'https://pad.example.org' );
+define( 'WPELB_ETHERPAD_API_KEY', 'REPLACE_WITH_LEGACY_API_KEY' );
+```
+
+Alternative supported authentication is via the existing Etherpad bearer/OAuth
+settings documented in the code. **There is intentionally no default Etherpad
+hostname:** legacy API connections without an explicit URL fail with an
+actionable configuration error rather than connecting to somebody else's pad.
+New public-export connections need neither constant.
+
+## Diagnose problems
+
+| Symptom | What to check |
+|---|---|
+| Cannot connect a pad | Liveblog is enabled; you have post-edit and publish rights; both public export paths are reachable and not challenged by a proxy |
+| No new update | The full-line `POSTOK` follows the text; connection status is active; check WordPress cron/system cron and bridge errors |
+| No webhook delivery | Same secret on both servers, matching HTTPS `origin`, synchronized clocks and reverse proxy/WAF logs |
+| An edited entry stays unchanged | Check per-block `conflict`; a manual WordPress edit must not be overwritten |
+| Connection pauses | Check pending writes, changed marker anchors and available Etherpad revision history; do not blindly clear locks or reset mappings |
+| Author not offered | WordPress user must exist and have `edit_posts` |
+| New install works, old API connection fails | Configure `WPELB_ETHERPAD_BASE_URL` explicitly for that legacy connection |
+
+A one-off diagnostic pass runs with:
+
+```bash
+wp --path=/path/to/wordpress etherpad-liveblog run --once
+```
+
+More detail: [Operations (Greek)](docs/OPERATIONS.el.md) ·
+[Pad protocol](docs/PAD-PROTOCOL.md) ·
+[User guide (Greek)](docs/USER-GUIDE.el.md) ·
+[Architecture](docs/ARCHITECTURE.md) ·
+[Release instructions](docs/RELEASING.md).
+
+## Updates, development and license
+
+The plugin uses normal WordPress update notifications sourced from this
+project's [published GitHub Releases](https://github.com/lstamellos/WP-etherpad-to-liveblog/releases).
+Automatic updates remain **opt-in** through WordPress. For a production site,
+verify update/rollback on staging before enabling unattended updates.
+
+Run the repository's smoke tests on PHP 8.0+ (CI also checks PHP 8.3):
 
 ```bash
 find . -name '*.php' -print0 | xargs -0 -n1 php -l
+php tests/updater-smoke.php
 php tests/integration-smoke.php
 php tests/marker-keyboards-smoke.php
-php tests/updater-smoke.php
+php tests/legacy-origin-smoke.php
 php tests/admin-ajax-smoke.php
 php tests/public-export-smoke.php
 php tests/liveblog-poll-trigger-smoke.php
@@ -153,6 +274,5 @@ php tests/webhook-receiver-smoke.php
 node --check assets/admin.js
 ```
 
-[Architecture](docs/ARCHITECTURE.md) · [Pad protocol](docs/PAD-PROTOCOL.md) · [Greek development plan](docs/DEVELOPMENT-PLAN.el.md) · [Testing](docs/TEST-PLAN.md) · [Operations](docs/OPERATIONS.el.md) · [Releases](docs/RELEASING.md)
-
-**License:** GPL-2.0-or-later. [Etherpad HTTP API](https://docs.etherpad.org/api/http_api.html) · [Automattic Liveblog entry implementation](https://github.com/Automattic/liveblog/blob/develop/classes/class-wpcom-liveblog-entry.php).
+WordPress plugin license: **GPL-2.0-or-later**. The optional Etherpad webhook
+plugin is released separately under **GPL-3.0-only**.
