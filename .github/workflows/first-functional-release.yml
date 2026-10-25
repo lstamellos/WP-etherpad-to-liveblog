@@ -26,7 +26,7 @@ jobs:
           php tests/updater-smoke.php
           php tests/integration-smoke.php
           php tests/marker-keyboards-smoke.php
-          php tests/admin-ajax-smoke.php
+          php tests/legacy-origin-smoke.php\n          php tests/admin-ajax-smoke.php
           php tests/public-export-smoke.php
           php tests/liveblog-poll-trigger-smoke.php
           php tests/webhook-receiver-smoke.php
@@ -65,5 +65,5 @@ jobs:
           else
             gh release create "$TAG" wp-etherpad-to-liveblog.zip \
               --target "$GITHUB_SHA" --title "$TAG — Etherpad to Liveblog MVP patch" \
-              --notes "$TAG: Greek/Latin/mixed-keyboard POSTOK and NOPOST controls, authenticated per-Liveblog WordPress author selection, and separate authorized publishing identity. Preserves v0.4.0 webhook, independent cron recovery, existing marker/entry mappings and manual Liveblog edit precedence."
+              --notes "$TAG: Provider-neutral onboarding documentation, generic webhook examples, and removal of the legacy authenticated Etherpad API hostname fallback. Existing public-export connections, POSTOK/NOPOST, author attribution, webhooks and cron retain their behavior. Set WPELB_ETHERPAD_BASE_URL explicitly for legacy API mappings."
           fi
