@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1 (2026-10-26)
+
+- Reworked README and operational documentation for third-party WordPress and Etherpad sites, including independent cron and optional HMAC webhook configuration.
+- Removed the legacy API client's hard-coded Etherpad hostname. Mappings without a saved origin now require explicit `WPELB_ETHERPAD_BASE_URL`; new public-export mappings remain unaffected.
+- Replaced organization-specific admin placeholders, plugin author display and automated-test fixtures with generic names and domains.
+- Replaced outdated design/usage guides with current implementation details and added a regression test for missing legacy configuration.
+
 ## 0.5.0 (2026-10-24)
 
 - Full-line POSTOK and NOPOST are now case-insensitive and Greek/Latin/mixed keyboard tolerant, with six-code-unit marker compatibility.
