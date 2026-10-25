@@ -6,7 +6,7 @@
  * Version: 0.5.0
  * Requires at least: 6.4
  * Requires PHP: 8.0
- * Author: OmniaTV contributors
+ * Author: WP Etherpad to Liveblog contributors
  * License: GPL-2.0-or-later
  * Update URI: https://github.com/lstamellos/WP-etherpad-to-liveblog
  * Text Domain: wp-etherpad-to-liveblog
