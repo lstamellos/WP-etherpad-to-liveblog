@@ -7,8 +7,8 @@ $GLOBALS['routes'] = array();
 $GLOBALS['events'] = array();
 $GLOBALS['synced'] = array();
 $GLOBALS['states'] = array(
-    42 => array( 'status' => 'active', 'origin' => 'https://pad.omniatv.com', 'pad_id' => 'newsroom' ),
-    43 => array( 'status' => 'paused', 'origin' => 'https://pad.omniatv.com', 'pad_id' => 'paused' ),
+    42 => array( 'status' => 'active', 'origin' => 'https://pad.example.org', 'pad_id' => 'newsroom' ),
+    43 => array( 'status' => 'paused', 'origin' => 'https://pad.example.org', 'pad_id' => 'paused' ),
     44 => array( 'status' => 'active', 'origin' => 'https://another.example.org', 'pad_id' => 'newsroom' ),
 );
 class WP_Error {
@@ -70,7 +70,7 @@ function signed_request( $data, $timestamp = null, $event = 'ae067a90-4c84-4354-
         ),
     ) );
 }
-$event = array( 'origin' => 'https://pad.omniatv.com', 'pad_id' => 'newsroom', 'revision' => 12 );
+$event = array( 'origin' => 'https://pad.example.org', 'pad_id' => 'newsroom', 'revision' => 12 );
 $ok = WPELB_Webhook::receive( signed_request( $event ) );
 check( $ok instanceof WP_REST_Response && $ok->get_status() === 202, 'Valid event must be accepted.' );
 check( $ok->get_data()['accepted'], 'Linked active pad not recognized.' );
@@ -86,7 +86,7 @@ check( is_wp_error( $invalid ) && $invalid->get_error_data()['status'] === 400, 
 $unlinked = WPELB_Webhook::receive( signed_request( array( 'origin' => 'https://another.example.org', 'pad_id' => 'not-linked', 'revision' => 1 ) ) );
 check( $unlinked instanceof WP_REST_Response && ! $unlinked->get_data()['accepted'], 'Unlinked pads must be ignored.' );
 check( count( $GLOBALS['events'] ) === 1, 'Rejected requests must not schedule work.' );
-$pause = WPELB_Webhook::receive( signed_request( array( 'origin' => 'https://pad.omniatv.com', 'pad_id' => 'paused', 'revision' => 1 ) ) );
+$pause = WPELB_Webhook::receive( signed_request( array( 'origin' => 'https://pad.example.org', 'pad_id' => 'paused', 'revision' => 1 ) ) );
 check( ! $pause->get_data()['accepted'], 'Paused pads must not sync.' );
 $ok2 = WPELB_Webhook::receive( signed_request( $event ) );
 check( count( $GLOBALS['events'] ) === 1, 'Concurrent events must not duplicate deferred schedule.' );
