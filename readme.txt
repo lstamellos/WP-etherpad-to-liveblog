@@ -3,7 +3,7 @@ Contributors: lstamellos
 Tags: etherpad, liveblog, journalism, wordpress
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 0.5.0
+Stable tag: 0.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -15,10 +15,10 @@ Functional MVP with multilingual POSTOK publishing, NOPOST exclusions, per-Liveb
 
 == Installation ==
 
-1. Install Automattic Liveblog and enable it on a post.
-2. Install this plugin. No Etherpad API credentials are required for publicly readable pads.
+1. Install Automattic Liveblog and enable it on an ordinary WordPress post.
+2. Install this plugin. Connect any publicly readable HTTPS Etherpad pad; no API credentials are required for new connections. Restrict edit access at Etherpad.
 3. In the Liveblog post editor, connect a public HTTPS Etherpad pad from any instance in the Etherpad → Liveblog box and choose an eligible WordPress author. Author can later be changed for future updates.
-4. Publishing is driven automatically by Liveblog polling when readers have the page open, with WP-Cron fallback. For debugging, run wp etherpad-liveblog run --once.
+4. Configure an OS cron job to run wp etherpad-liveblog run --once every minute for reliable recovery when there are no readers or site visitors. Liveblog polling and WP-Cron provide traffic-dependent fallback; an optional signed Etherpad webhook reduces latency.
 5. Test on staging before production. See README.md and docs/OPERATIONS.el.md.
 
 == Updates ==
@@ -26,6 +26,11 @@ Functional MVP with multilingual POSTOK publishing, NOPOST exclusions, per-Liveb
 The plugin checks published stable GitHub Releases using the native WordPress plugin-update mechanism. Administrators may enable automatic updates from the WordPress Plugins page.
 
 == Changelog ==
+
+= 0.5.1 =
+* Provider-neutral setup instructions for independent WordPress and Etherpad hosts, cron and signed webhook configuration.
+* Remove the hard-coded fallback Etherpad hostname from the legacy authenticated API client. Explicit WPELB_ETHERPAD_BASE_URL is now required for legacy mappings without an origin.
+* Use generic hostnames in the WordPress connection UI and fixtures; preserve existing public-export mappings and current publication logic.
 
 = 0.5.0 =
 * POSTOK and NOPOST control strings support upper/lower-case Greek, Latin and mixed keyboards, on complete lines.
